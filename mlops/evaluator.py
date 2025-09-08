@@ -252,7 +252,11 @@ class ModelEvaluator:
 			evaluation_id=f"{model_id}_{task_id}_{int(time.time())}",
 			task_id=task_id,
 			model_id=model_id,
-			run_id=f"eval_{int(time.time())}"
+			run_id=f"eval_{int(time.time())}",
+			success=False,  # Default values
+			completion_time_seconds=0.0,
+			steps_taken=0,
+			actions_performed=0
 		)
 		
 		start_time = time.time()

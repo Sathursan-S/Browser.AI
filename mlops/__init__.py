@@ -13,11 +13,15 @@ from .experiment_tracker import ExperimentTracker
 from .model_registry import ModelRegistry
 from .metrics import MetricsCollector
 from .evaluator import ModelEvaluator
+from .config_manager import ConfigManager
+from .data_manager import DataManager
 
 __version__ = "1.0.0"
 __all__ = [
     "ExperimentTracker",
     "ModelRegistry", 
     "MetricsCollector",
-    "ModelEvaluator"
+    "ModelEvaluator",
+    "ConfigManager",
+    "DataManager"
 ]

@@ -1,0 +1,186 @@
+{
+  "experiment_id": "bb17e5f6-2d50-4369-aa63-3f88e5949170",
+  "run_id": "6134133f-745e-4859-8c03-90e20ac3772c",
+  "started_at": "2025-09-08 15:55:29.267012",
+  "completed_at": "2025-09-08 15:55:29.267078",
+  "status": "completed",
+  "task_success_rate": 0.9,
+  "average_completion_time": 6.6e-05,
+  "total_steps": 10,
+  "error_count": 0,
+  "step_success_rates": [],
+  "action_types_used": {
+    "click": 10
+  },
+  "failure_reasons": [],
+  "conversation_log": [
+    {
+      "role": "user",
+      "content": "Task 1",
+      "timestamp": "2025-09-08T15:55:29.267032",
+      "metadata": {}
+    },
+    {
+      "role": "user",
+      "content": "Task 2",
+      "timestamp": "2025-09-08T15:55:29.267040",
+      "metadata": {}
+    },
+    {
+      "role": "user",
+      "content": "Task 3",
+      "timestamp": "2025-09-08T15:55:29.267045",
+      "metadata": {}
+    },
+    {
+      "role": "user",
+      "content": "Task 4",
+      "timestamp": "2025-09-08T15:55:29.267049",
+      "metadata": {}
+    },
+    {
+      "role": "user",
+      "content": "Task 5",
+      "timestamp": "2025-09-08T15:55:29.267054",
+      "metadata": {}
+    },
+    {
+      "role": "user",
+      "content": "Task 6",
+      "timestamp": "2025-09-08T15:55:29.267058",
+      "metadata": {}
+    },
+    {
+      "role": "user",
+      "content": "Task 7",
+      "timestamp": "2025-09-08T15:55:29.267062",
+      "metadata": {}
+    },
+    {
+      "role": "user",
+      "content": "Task 8",
+      "timestamp": "2025-09-08T15:55:29.267066",
+      "metadata": {}
+    },
+    {
+      "role": "user",
+      "content": "Task 9",
+      "timestamp": "2025-09-08T15:55:29.267070",
+      "metadata": {}
+    },
+    {
+      "role": "user",
+      "content": "Task 10",
+      "timestamp": "2025-09-08T15:55:29.267074",
+      "metadata": {}
+    }
+  ],
+  "screenshots": [],
+  "dom_snapshots": [],
+  "custom_metrics": {
+    "actions": [
+      {
+        "action_type": "click",
+        "success": true,
+        "timestamp": "2025-09-08T15:55:29.267027",
+        "details": {}
+      },
+      {
+        "action_type": "click",
+        "success": true,
+        "timestamp": "2025-09-08T15:55:29.267037",
+        "details": {}
+      },
+      {
+        "action_type": "click",
+        "success": false,
+        "timestamp": "2025-09-08T15:55:29.267044",
+        "details": {}
+      },
+      {
+        "action_type": "click",
+        "success": true,
+        "timestamp": "2025-09-08T15:55:29.267048",
+        "details": {}
+      },
+      {
+        "action_type": "click",
+        "success": true,
+        "timestamp": "2025-09-08T15:55:29.267052",
+        "details": {}
+      },
+      {
+        "action_type": "click",
+        "success": true,
+        "timestamp": "2025-09-08T15:55:29.267057",
+        "details": {}
+      },
+      {
+        "action_type": "click",
+        "success": true,
+        "timestamp": "2025-09-08T15:55:29.267061",
+        "details": {}
+      },
+      {
+        "action_type": "click",
+        "success": true,
+        "timestamp": "2025-09-08T15:55:29.267065",
+        "details": {}
+      },
+      {
+        "action_type": "click",
+        "success": true,
+        "timestamp": "2025-09-08T15:55:29.267069",
+        "details": {}
+      },
+      {
+        "action_type": "click",
+        "success": true,
+        "timestamp": "2025-09-08T15:55:29.267073",
+        "details": {}
+      }
+    ],
+    "task_success": [
+      {
+        "value": 1.0,
+        "timestamp": "2025-09-08T15:55:29.267034"
+      },
+      {
+        "value": 1.0,
+        "timestamp": "2025-09-08T15:55:29.267042"
+      },
+      {
+        "value": 0.0,
+        "timestamp": "2025-09-08T15:55:29.267047"
+      },
+      {
+        "value": 1.0,
+        "timestamp": "2025-09-08T15:55:29.267051"
+      },
+      {
+        "value": 1.0,
+        "timestamp": "2025-09-08T15:55:29.267055"
+      },
+      {
+        "value": 1.0,
+        "timestamp": "2025-09-08T15:55:29.267059"
+      },
+      {
+        "value": 1.0,
+        "timestamp": "2025-09-08T15:55:29.267064"
+      },
+      {
+        "value": 1.0,
+        "timestamp": "2025-09-08T15:55:29.267068"
+      },
+      {
+        "value": 1.0,
+        "timestamp": "2025-09-08T15:55:29.267072"
+      },
+      {
+        "value": 1.0,
+        "timestamp": "2025-09-08T15:55:29.267076"
+      }
+    ]
+  }
+}

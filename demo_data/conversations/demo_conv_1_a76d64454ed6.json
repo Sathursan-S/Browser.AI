@@ -1,0 +1,28 @@
+{
+  "conversation_id": "demo_conv_1",
+  "session_id": "session_1",
+  "timestamp": "2025-09-08 15:55:49.032606",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Navigate to google.com"
+    },
+    {
+      "role": "assistant",
+      "content": "I'll help you navigate to Google."
+    }
+  ],
+  "task_description": "Browser automation task 1",
+  "task_category": null,
+  "success": true,
+  "completion_time_seconds": 68.46469537586165,
+  "steps_taken": 0,
+  "errors_encountered": [],
+  "model_id": "BrowserAI_openai_gpt_4_1.0.0_20250908_155549",
+  "model_version": null,
+  "quality_score": 0.8691380424974988,
+  "reviewed": false,
+  "include_in_training": true,
+  "tags": [],
+  "annotations": {}
+}

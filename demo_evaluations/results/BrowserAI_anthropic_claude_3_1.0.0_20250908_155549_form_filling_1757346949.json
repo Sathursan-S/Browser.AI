@@ -1,0 +1,59 @@
+{
+  "evaluation_id": "BrowserAI_anthropic_claude_3_1.0.0_20250908_155549_form_filling_1757346949",
+  "task_id": "form_filling",
+  "model_id": "BrowserAI_anthropic_claude_3_1.0.0_20250908_155549",
+  "run_id": "eval_1757346949",
+  "timestamp": "2025-09-08 15:55:49.031808",
+  "success": false,
+  "completion_time_seconds": 2.8371810913085938e-05,
+  "steps_taken": 5,
+  "actions_performed": 5,
+  "task_completion_score": 0.8,
+  "efficiency_score": 0.95,
+  "accuracy_score": 0.6,
+  "overall_score": 0.7875,
+  "actions_trace": [
+    {
+      "step": 1,
+      "type": "click",
+      "success": false,
+      "timestamp": 1757346949.0318263,
+      "details": "Mock click action"
+    },
+    {
+      "step": 2,
+      "type": "type",
+      "success": true,
+      "timestamp": 1757346949.0318289,
+      "details": "Mock type action"
+    },
+    {
+      "step": 3,
+      "type": "click",
+      "success": true,
+      "timestamp": 1757346949.0318305,
+      "details": "Mock click action"
+    },
+    {
+      "step": 4,
+      "type": "type",
+      "success": false,
+      "timestamp": 1757346949.0318313,
+      "details": "Mock type action"
+    },
+    {
+      "step": 5,
+      "type": "click",
+      "success": true,
+      "timestamp": 1757346949.031832,
+      "details": "Mock click action"
+    }
+  ],
+  "error_messages": [],
+  "warnings": [],
+  "llm_calls_made": 0,
+  "total_tokens_used": 0,
+  "estimated_cost": null,
+  "custom_scores": {},
+  "evaluation_notes": null
+}
