@@ -554,7 +554,7 @@ class Agent:
 				await self.browser.close()
 
 			if self.generate_gif:
-				output_path: str = 'agent_history.gif'
+				output_path: str = f'agent_history-{self.task}.gif'
 				if isinstance(self.generate_gif, str):
 					output_path = self.generate_gif
 
