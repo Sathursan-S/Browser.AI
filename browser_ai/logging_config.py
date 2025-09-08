@@ -65,7 +65,7 @@ def setup_logging():
 	except AttributeError:
 		pass  # Level already exists, which is fine
 
-	log_type = os.getenv('BROWSER_USE_LOGGING_LEVEL', 'info').lower()
+	log_type = os.getenv('BROWSER_AI_LOGGING_LEVEL', 'info').lower()
 
 	# Check if handlers are already set up
 	if logging.getLogger().hasHandlers():
@@ -75,7 +75,7 @@ def setup_logging():
 	root = logging.getLogger()
 	root.handlers = []
 
-	class BrowserUseFormatter(logging.Formatter):
+	class BrowserAIFormatter(logging.Formatter):
 		def format(self, record):
 			if type(record.name) == str and record.name.startswith('browser_ai.'):
 				record.name = record.name.split('.')[-2]
@@ -87,9 +87,9 @@ def setup_logging():
 	# adittional setLevel here to filter logs
 	if log_type == 'result':
 		console.setLevel('RESULT')
-		console.setFormatter(BrowserUseFormatter('%(message)s'))
+		console.setFormatter(BrowserAIFormatter('%(message)s'))
 	else:
-		console.setFormatter(BrowserUseFormatter('%(levelname)-8s [%(name)s] %(message)s'))
+		console.setFormatter(BrowserAIFormatter('%(levelname)-8s [%(name)s] %(message)s'))
 
 	# Configure root logger only
 	root.addHandler(console)
@@ -103,13 +103,13 @@ def setup_logging():
 		root.setLevel(logging.INFO)
 
 	# Configure browser_ai logger
-	browser_use_logger = logging.getLogger('browser_ai')
-	browser_use_logger.propagate = False  # Don't propagate to root logger
-	browser_use_logger.addHandler(console)
-	browser_use_logger.setLevel(root.level)  # Set same level as root logger
+	browser_ai_logger = logging.getLogger('browser_ai')
+	browser_ai_logger.propagate = False  # Don't propagate to root logger
+	browser_ai_logger.addHandler(console)
+	browser_ai_logger.setLevel(root.level)  # Set same level as root logger
 
 	logger = logging.getLogger('browser_ai')
-	logger.info('BrowserUse logging setup complete with level %s', log_type)
+	logger.info('BrowserAI logging setup complete with level %s', log_type)
 	# Silence third-party loggers
 	for logger in [
 		'WDM',

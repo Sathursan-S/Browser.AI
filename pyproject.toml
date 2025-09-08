@@ -31,6 +31,9 @@ dependencies = [
     "lmnr[langchain]>=0.4.59",
     "markdownify==0.14.1",
     "gradio>=5.44.1",
+    "langgraph>=0.5.4",
+    "crewai>=0.177.0",
+    "langchain-core>=0.3.63",
 ]
 
 [project.optional-dependencies]
