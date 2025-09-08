@@ -75,7 +75,7 @@ def setup_logging():
 	root = logging.getLogger()
 	root.handlers = []
 
-	class Browser.AIFormatter(logging.Formatter):
+	class BrowserAIFormatter(logging.Formatter):
 		def format(self, record):
 			if type(record.name) == str and record.name.startswith('browser_ai.'):
 				record.name = record.name.split('.')[-2]
@@ -87,9 +87,9 @@ def setup_logging():
 	# adittional setLevel here to filter logs
 	if log_type == 'result':
 		console.setLevel('RESULT')
-		console.setFormatter(Browser.AIFormatter('%(message)s'))
+		console.setFormatter(BrowserAIFormatter('%(message)s'))
 	else:
-		console.setFormatter(Browser.AIFormatter('%(levelname)-8s [%(name)s] %(message)s'))
+		console.setFormatter(BrowserAIFormatter('%(levelname)-8s [%(name)s] %(message)s'))
 
 	# Configure root logger only
 	root.addHandler(console)
@@ -109,7 +109,7 @@ def setup_logging():
 	browser_ai_logger.setLevel(root.level)  # Set same level as root logger
 
 	logger = logging.getLogger('browser_ai')
-	logger.info('Browser.AI logging setup complete with level %s', log_type)
+	logger.info('BrowserAI logging setup complete with level %s', log_type)
 	# Silence third-party loggers
 	for logger in [
 		'WDM',
