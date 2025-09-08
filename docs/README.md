@@ -113,15 +113,8 @@ agent = Agent(
 
 The Agent Service is the central orchestrator that combines intelligent planning with robust execution:
 
-- **Multi-LLM Support**: OpenAI, Anthropic, Google, Ollama, and more
-- **Vision Capabilities**: Screenshot analysis and visual decision making
-- **Conversation Management**: Persistent chat history with token management
-- **Error Recovery**: Automatic retry mechanisms and failure handling
-- **Specialized Agents**: LangGraph and CrewAI reactive implementations
-
 **Key Features:**
 - Step-by-step task execution with planning
-- Vision-enabled element recognition and validation
 - Comprehensive conversation persistence
 - Advanced prompt engineering with dynamic context
 
@@ -217,42 +210,6 @@ The documentation includes comprehensive examples for:
 
 ## 🛠️ Advanced Features
 
-### Multi-LLM Integration
-
-```python
-# Different LLMs for different tasks
-agent = Agent(
-    task="Complex automation",
-    llm=ChatOpenAI(model="gpt-4-turbo"),           # Primary decisions
-    planner_llm=ChatAnthropic(model="claude-3"),   # Strategic planning
-    page_extraction_llm=ChatGoogleGenerativeAI(),  # Content extraction
-    use_vision=True,
-    use_vision_for_planner=False
-)
-```
-
-### Custom Action Development
-
-```python
-# Register domain-specific actions
-@controller.registry.action('Extract product prices')
-async def extract_prices(params: ProductParams, browser: BrowserContext):
-    # Custom extraction logic
-    prices = await extract_price_data(browser)
-    return ActionResult(extracted_content=json.dumps(prices))
-```
-
-### Observability and Monitoring
-
-```python
-from lmnr import observe
-
-@observe(name="automation_task")
-async def monitored_workflow():
-    result = await agent.run()
-    return result
-```
-
 ## 🔧 Configuration Options
 
 ### Environment Variables
@@ -344,14 +301,3 @@ Browser.AI excels in these automation scenarios:
 - **Social Media Management**: Content posting, engagement, analytics collection
 - **Research & Data Collection**: Systematic information gathering across multiple sources
 - **Workflow Automation**: Business process automation with decision-making capabilities
-
-## 🔍 Additional Resources
-
-- **Source Code**: Explore the implementation at `/browser_ai/`
-- **Examples**: Check the `/examples/` directory for practical implementations
-- **Tests**: Review `/tests/` for comprehensive usage examples
-- **Configuration**: See `/config/` for deployment configurations
-
----
-
-*This documentation provides comprehensive coverage of the Browser.AI framework. For specific implementation questions, refer to the detailed component documentation or explore the source code examples.*
