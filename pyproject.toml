@@ -31,6 +31,9 @@ dependencies = [
     "lmnr[langchain]>=0.4.59",
     "markdownify==0.14.1",
     "gradio>=5.44.1",
+    "tk>=0.1.0",
+    "flask>=3.1.2",
+    "flask-socketio>=5.5.1",
 ]
 
 [project.optional-dependencies]

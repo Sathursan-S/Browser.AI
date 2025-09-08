@@ -10,13 +10,20 @@ from dataclasses import dataclass, asdict
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 
+from dotenv import load_dotenv
+from pydantic import SecretStr
+
+load_dotenv()
+api_key = os.getenv('GEMINI_API_KEY')
+if not api_key:
+	raise ValueError('GEMINI_API_KEY is not set')
 
 @dataclass
 class LLMConfig:
     """Configuration for Language Model"""
-    provider: str = "openai"  # openai, anthropic, ollama, google, etc.
-    model: str = "gpt-4-turbo"
-    api_key: str = ""
+    provider: str = "google"  # openai, anthropic, ollama, google, etc.
+    model: str = "gemini-2.5-flash-lite"
+    api_key: str = SecretStr(api_key)
     base_url: Optional[str] = None  # For custom endpoints
     temperature: float = 0.1
     max_tokens: Optional[int] = None
@@ -235,7 +242,7 @@ class ConfigManager:
             "openai": ["gpt-4-turbo", "gpt-4", "gpt-3.5-turbo"],
             "anthropic": ["claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307"],
             "ollama": ["llama2", "codellama", "mistral", "dolphin-mistral"],
-            "google": ["gemini-pro", "gemini-pro-vision"]
+            "google": ["gemini-2.5-flash-lite", "gemini-pro", "gemini-pro-vision"]
         }
     
     def validate_config(self) -> List[str]:
