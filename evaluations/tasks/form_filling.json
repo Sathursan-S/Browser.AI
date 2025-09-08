@@ -1,0 +1,41 @@
+{
+  "task_id": "form_filling",
+  "name": "Form Filling",
+  "description": "Fill out a contact form",
+  "task_prompt": "Go to httpbin.org/forms/post and fill out the contact form with sample data",
+  "expected_actions": [
+    {
+      "type": "navigate",
+      "url": "http://httpbin.org/forms/post"
+    },
+    {
+      "type": "type",
+      "field": "custname",
+      "text": "John Doe"
+    },
+    {
+      "type": "type",
+      "field": "custtel",
+      "text": "123-456-7890"
+    },
+    {
+      "type": "type",
+      "field": "custemail",
+      "text": "john@example.com"
+    },
+    {
+      "type": "click",
+      "element": "submit"
+    }
+  ],
+  "success_criteria": {
+    "must_fill_name": true,
+    "must_fill_email": true,
+    "must_submit_form": true,
+    "max_steps": 15
+  },
+  "timeout_seconds": 300,
+  "tags": [],
+  "difficulty": "medium",
+  "category": "forms"
+}

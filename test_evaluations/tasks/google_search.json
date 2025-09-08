@@ -1,0 +1,30 @@
+{
+  "task_id": "google_search",
+  "name": "Google Search",
+  "description": "Search for information on Google",
+  "task_prompt": "Search for 'Python programming tutorial' on Google and find the first result",
+  "expected_actions": [
+    {
+      "type": "navigate",
+      "url": "https://google.com"
+    },
+    {
+      "type": "type",
+      "text": "Python programming tutorial"
+    },
+    {
+      "type": "click",
+      "element": "search button"
+    }
+  ],
+  "success_criteria": {
+    "must_visit_google": true,
+    "must_perform_search": true,
+    "min_steps": 3,
+    "max_steps": 10
+  },
+  "timeout_seconds": 300,
+  "tags": [],
+  "difficulty": "easy",
+  "category": "search"
+}

@@ -1,0 +1,32 @@
+ab_tests:
+  prompt_optimization:
+    enabled: true
+    success_metric: task_completion_rate
+    traffic_split:
+    - 0.4
+    - 0.3
+    - 0.3
+    variants:
+    - standard
+    - detailed
+    - concise
+browser:
+  disable_security: false
+  headless: true
+deployment:
+  environment: staging
+  replicas: 2
+  version: staging
+environment: staging
+feature_flags:
+  enable_advanced_dom_analysis: true
+  enable_conversation_memory: true
+  enable_cost_optimization: true
+llm:
+  api_key_env: OPENAI_API_KEY
+  model: gpt-4
+  provider: openai
+  temperature: 0.05
+monitoring:
+  enable_metrics: true
+  log_level: INFO
