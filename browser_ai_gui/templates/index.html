@@ -31,6 +31,7 @@
             border-right: 1px solid #3c3c3c;
             display: flex;
             flex-direction: column;
+            transition: width 0.3s ease, border-right 0.3s ease;
         }
 
         .sidebar-header {
@@ -158,6 +159,7 @@
             flex: 1;
             display: flex;
             flex-direction: column;
+            transition: margin-left 0.3s ease;
         }
 
         .chat-header {
@@ -172,6 +174,31 @@
         .chat-title {
             font-size: 16px;
             font-weight: 600;
+        }
+
+        .sidebar-toggle {
+            background: none;
+            border: none;
+            color: #cccccc;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 2px;
+            margin-right: 12px;
+            font-size: 14px;
+        }
+
+        .sidebar-toggle:hover {
+            background: #3c3c3c;
+        }
+
+        .sidebar.collapsed {
+            width: 0;
+            overflow: hidden;
+            border-right: none;
+        }
+
+        .main-content.expanded {
+            margin-left: 0;
         }
 
         .chat-controls {
@@ -401,6 +428,7 @@
         @media (max-width: 768px) {
             .sidebar {
                 width: 250px;
+                transition: width 0.3s ease, border-right 0.3s ease;
             }
         }
     </style>
@@ -501,6 +529,7 @@
         <!-- Main Chat Area -->
         <div class="main-content">
             <div class="chat-header">
+                <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" title="Hide Sidebar (Ctrl+B)">☰</button>
                 <div class="chat-title">Browser Automation Chat</div>
                 <div class="chat-controls">
                     <button class="btn btn-warning" id="pauseBtn" onclick="pauseTask()" disabled>Pause</button>
@@ -846,6 +875,24 @@
             }
         }
 
+        function toggleSidebar() {
+            const sidebar = document.querySelector('.sidebar');
+            const mainContent = document.querySelector('.main-content');
+            const toggleBtn = document.getElementById('sidebarToggle');
+            
+            if (sidebar.classList.contains('collapsed')) {
+                sidebar.classList.remove('collapsed');
+                mainContent.classList.remove('expanded');
+                toggleBtn.textContent = '☰';
+                toggleBtn.title = 'Hide Sidebar (Ctrl+B)';
+            } else {
+                sidebar.classList.add('collapsed');
+                mainContent.classList.add('expanded');
+                toggleBtn.textContent = '☰';
+                toggleBtn.title = 'Show Sidebar (Ctrl+B)';
+            }
+        }
+
         function setupEventListeners() {
             // Enter key to send message
             document.getElementById('chatInput').addEventListener('keydown', function(e) {
@@ -859,6 +906,14 @@
             document.getElementById('llmProvider').addEventListener('change', function() {
                 if (configCache && configCache.default_models) {
                     updateModelOptions(this.value, configCache.default_models);
+                }
+            });
+            
+            // Keyboard shortcut for sidebar toggle (Ctrl+B)
+            document.addEventListener('keydown', function(e) {
+                if (e.ctrlKey && e.key === 'b') {
+                    e.preventDefault();
+                    toggleSidebar();
                 }
             });
         }
