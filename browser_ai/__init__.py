@@ -12,6 +12,9 @@ from browser_ai.browser.browser import BrowserConfig as BrowserConfig
 from browser_ai.browser.context import BrowserContextConfig
 from browser_ai.controller.service import Controller as Controller
 from browser_ai.dom.service import DomService as DomService
+from browser_ai.gui.chat_interface import BrowserAIChat as BrowserAIChat
+from browser_ai.gui.chat_interface import create_agent_with_gui as create_agent_with_gui
+from browser_ai.gui.chat_interface import run_agent_with_gui as run_agent_with_gui
 
 __all__ = [
 	'Agent',
@@ -24,4 +27,7 @@ __all__ = [
 	'ActionModel',
 	'AgentHistoryList',
 	'BrowserContextConfig',
+	'BrowserAIChat',
+	'create_agent_with_gui',
+	'run_agent_with_gui',
 ]
