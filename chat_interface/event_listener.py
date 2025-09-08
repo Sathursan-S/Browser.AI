@@ -197,7 +197,7 @@ class LogEventListener:
         event = LogEvent(
             timestamp=datetime.now(),
             level=LogLevel.INFO,
-            message=f"Step {step}: {getattr(output, 'current_state', {}).get('next_goal', 'Processing...')}",
+            message=f"Step {step}: {getattr(output.current_state, 'next_goal', 'Processing...') if output and hasattr(output, 'current_state') else 'Processing...'}",
             source="agent",
             step_number=step,
             task_status=TaskStatus.RUNNING,
@@ -216,7 +216,7 @@ class LogEventListener:
                 status=TaskStatus.RUNNING,
                 step_number=step,
                 total_steps=None,
-                current_action=getattr(output, 'current_state', {}).get('next_goal', 'Processing...'),
+                current_action=getattr(output.current_state, 'next_goal', 'Processing...') if output and hasattr(output, 'current_state') else 'Processing...',
                 result=None,
                 error=None,
                 timestamp=datetime.now()

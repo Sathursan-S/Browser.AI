@@ -12,18 +12,18 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional
 import threading
 
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
     QTextEdit, QLineEdit, QPushButton, QSplitter, QTabWidget,
     QComboBox, QLabel, QGroupBox, QFormLayout, QSlider,
     QScrollArea, QFrame, QProgressBar, QStatusBar, QMessageBox,
     QDialog, QDialogButtonBox, QSpinBox, QCheckBox
 )
-from PyQt5.QtCore import (
-    Qt, QTimer, pyqtSignal, QObject, QThread, pyqtSlot,
+from PySide6.QtCore import (
+    Qt, QTimer, Signal, QObject, QThread, Slot,
     QPropertyAnimation, QEasingCurve
 )
-from PyQt5.QtGui import QFont, QTextCursor, QPalette, QColor
+from PySide6.QtGui import QFont, QTextCursor, QPalette, QColor
 
 from browser_ai import Agent, Browser
 
@@ -226,12 +226,17 @@ class LLMConfigDialog(QDialog):
         form_layout.addRow("Configuration Name:", self.name_edit)
         
         self.provider_combo = QComboBox()
-        self.provider_combo.addItems(["openai", "anthropic", "ollama"])
+        self.provider_combo.addItems(["google", "openai", "anthropic", "ollama"])
+        self.provider_combo.currentTextChanged.connect(self.on_provider_changed)
         form_layout.addRow("Provider:", self.provider_combo)
         
         self.model_edit = QLineEdit()
-        self.model_edit.setPlaceholderText("e.g., 'gpt-4o-mini'")
+        self.model_edit.setPlaceholderText("e.g., 'gemini-2.5-flash-lite'")
         form_layout.addRow("Model:", self.model_edit)
+        
+        # Set Google as default and trigger placeholder update
+        self.provider_combo.setCurrentText("google")
+        self.on_provider_changed("google")
         
         self.api_key_edit = QLineEdit()
         self.api_key_edit.setEchoMode(QLineEdit.Password)
@@ -286,10 +291,24 @@ class LLMConfigDialog(QDialog):
     def get_name(self) -> str:
         """Get configuration name"""
         return self.name_edit.text().strip()
+    
+    def on_provider_changed(self, provider_text: str):
+        """Update model placeholder when provider changes"""
+        placeholders = {
+            "google": "e.g., 'gemini-2.5-flash-lite'",
+            "openai": "e.g., 'gpt-4o-mini'",
+            "anthropic": "e.g., 'claude-3-sonnet-20240229'",
+            "ollama": "e.g., 'qwen2.5-coder:0.5b'"
+        }
+        self.model_edit.setPlaceholderText(placeholders.get(provider_text.lower(), "Enter model name"))
 
 
 class DesktopChatInterface(QMainWindow):
     """Qt desktop chat interface for Browser AI"""
+    
+    # Signal for thread-safe UI updates
+    chat_message_signal = Signal(str, bool)  # message, is_user
+    log_message_signal = Signal(str)  # message
     
     def __init__(self):
         super().__init__()
@@ -299,6 +318,10 @@ class DesktopChatInterface(QMainWindow):
         self.current_browser: Optional[Browser] = None
         self.current_task_id: Optional[str] = None
         self.running_task = False
+        
+        # Connect signal to slot
+        self.chat_message_signal.connect(self.add_chat_message)
+        self.log_message_signal.connect(self.add_log_safe)
         
         # Start event listener
         self.event_listener.start_listening()
@@ -374,8 +397,30 @@ class DesktopChatInterface(QMainWindow):
         self.send_button = QPushButton("Send")
         self.send_button.clicked.connect(self.send_message)
         
+        self.stop_button = QPushButton("Stop")
+        self.stop_button.clicked.connect(self.stop_task)
+        self.stop_button.setEnabled(False)  # Initially disabled
+        self.stop_button.setStyleSheet("""
+            QPushButton {
+                background-color: #dc3545;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #c82333;
+            }
+            QPushButton:disabled {
+                background-color: #6c757d;
+                color: #adb5bd;
+            }
+        """)
+        
         input_layout.addWidget(self.message_input)
         input_layout.addWidget(self.send_button)
+        input_layout.addWidget(self.stop_button)
         
         layout.addLayout(input_layout)
         
@@ -429,7 +474,7 @@ class DesktopChatInterface(QMainWindow):
         self.update_timer.timeout.connect(self.update_ui)
         self.update_timer.start(1000)  # Update every second
     
-    @pyqtSlot(LogEvent)
+    @Slot(LogEvent)
     def on_log_event(self, event: LogEvent):
         """Handle log events"""
         timestamp = event.timestamp.strftime("%H:%M:%S")
@@ -442,9 +487,9 @@ class DesktopChatInterface(QMainWindow):
         }.get(event.task_status, "⚪")
         
         log_message = f"[{timestamp}] {status_icon} {event.message}"
-        self.log_widget.add_log(log_message)
+        self.log_message_signal.emit(log_message)
     
-    @pyqtSlot(TaskUpdate)
+    @Slot(TaskUpdate)
     def on_task_update(self, update: TaskUpdate):
         """Handle task updates"""
         if update.status == TaskStatus.COMPLETED:
@@ -452,12 +497,20 @@ class DesktopChatInterface(QMainWindow):
             if update.result:
                 self.add_chat_message(f"✅ Task Completed\n\n{update.result}", is_user=False)
             self.status_widget.update_status("Completed")
+            # Reset button states
+            self.stop_button.setEnabled(False)
+            self.send_button.setEnabled(True)
+            self.message_input.setEnabled(True)
             
         elif update.status == TaskStatus.FAILED:
             self.running_task = False
             error_msg = update.error or "Unknown error occurred"
             self.add_chat_message(f"❌ Task Failed\n\n{error_msg}", is_user=False)
             self.status_widget.update_status("Failed")
+            # Reset button states
+            self.stop_button.setEnabled(False)
+            self.send_button.setEnabled(True)
+            self.message_input.setEnabled(True)
             
         elif update.status == TaskStatus.RUNNING:
             self.status_widget.update_status(f"Running (Step {update.step_number})", True)
@@ -485,7 +538,7 @@ class DesktopChatInterface(QMainWindow):
         """Show LLM configuration dialog"""
         dialog = LLMConfigDialog(self.config_manager, self)
         
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.Accepted:
             config = dialog.get_config()
             name = dialog.get_name()
             
@@ -503,6 +556,14 @@ class DesktopChatInterface(QMainWindow):
                         self, "Error", 
                         "Failed to connect to LLM. Please check your configuration."
                     )
+    
+    def add_log_safe(self, message: str):
+        """Thread-safe method to add log message"""
+        self.log_widget.add_log(message)
+    
+    def add_chat_message_safe(self, message: str, is_user: bool = True):
+        """Thread-safe method to add chat message"""
+        self.chat_message_signal.emit(message, is_user)
     
     def add_chat_message(self, message: str, is_user: bool = True):
         """Add message to chat display"""
@@ -551,6 +612,35 @@ class DesktopChatInterface(QMainWindow):
         
         # Start task execution
         self.run_task_async(message, llm_config_name)
+        
+        # Enable stop button and disable send button and input
+        self.stop_button.setEnabled(True)
+        self.send_button.setEnabled(False)
+        self.message_input.setEnabled(False)
+    
+    def stop_task(self):
+        """Stop the currently running task"""
+        if not self.running_task or not self.current_agent:
+            return
+        
+        try:
+            # Stop the agent
+            self.current_agent.stop()
+            
+            # Update UI
+            self.chat_message_signal.emit("⏹️ Task stopped by user", False)
+            
+            # Reset state
+            self.running_task = False
+            self.current_task_id = None
+            
+            # Update button states
+            self.stop_button.setEnabled(False)
+            self.send_button.setEnabled(True)
+            self.message_input.setEnabled(True)
+            
+        except Exception as e:
+            self.chat_message_signal.emit(f"❌ Error stopping task: {str(e)}", False)
     
     def run_task_async(self, task: str, llm_config_name: str):
         """Run task asynchronously"""
@@ -566,15 +656,20 @@ class DesktopChatInterface(QMainWindow):
                 )
                 # Task completed, result will be handled by task update callback
             except Exception as e:
-                self.add_chat_message(f"❌ Error: {str(e)}", is_user=False)
+                # Use thread-safe method to update UI
+                self.chat_message_signal.emit(f"❌ Error: {str(e)}", False)
                 self.running_task = False
+                # Reset button states on error
+                self.stop_button.setEnabled(False)
+                self.send_button.setEnabled(True)
+                self.message_input.setEnabled(True)
         
         # Start task in background thread
         thread = threading.Thread(target=run_task, daemon=True)
         thread.start()
         
-        # Add placeholder message
-        self.add_chat_message("🔄 Starting task execution...", is_user=False)
+        # Add placeholder message using thread-safe method
+        self.chat_message_signal.emit("🔄 Starting task execution...", False)
     
     async def run_browser_task(self, task: str, llm_config_name: str) -> str:
         """Run browser automation task"""
@@ -645,7 +740,7 @@ def main():
     window = DesktopChatInterface()
     window.show()
     
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":

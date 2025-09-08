@@ -93,6 +93,16 @@ class ConfigManager:
     
     def _create_default_config(self):
         """Create default configuration"""
+        # Add default Gemini config if API key is available (make it first/default)
+        google_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
+        if google_key:
+            self._llm_configs['gemini_pro'] = LLMConfig(
+                provider=LLMProvider.GOOGLE,
+                model="gemini-2.5-flash-lite",
+                api_key=google_key,
+                temperature=0.1
+            )
+        
         # Add default OpenAI config if API key is available
         openai_key = os.getenv('OPENAI_API_KEY')
         if openai_key:
@@ -108,7 +118,7 @@ class ConfigManager:
         if anthropic_key:
             self._llm_configs['claude'] = LLMConfig(
                 provider=LLMProvider.ANTHROPIC,
-                model="claude-3-sonnet-20241022",
+                model="claude-3-sonnet-20240229",
                 api_key=anthropic_key,
                 temperature=0.1
             )
@@ -116,7 +126,7 @@ class ConfigManager:
         # Add default Ollama config (no API key required)
         self._llm_configs['ollama_llama'] = LLMConfig(
             provider=LLMProvider.OLLAMA,
-            model="llama3.2",
+            model="qwen2.5-coder:0.5b",
             base_url="http://localhost:11434",
             temperature=0.1
         )
@@ -210,6 +220,17 @@ class ConfigManager:
                     **(config.extra_params or {})
                 )
             
+            elif config.provider == LLMProvider.GOOGLE:
+                from langchain_google_genai import ChatGoogleGenerativeAI
+                return ChatGoogleGenerativeAI(
+                    model=config.model,
+                    api_key=config.api_key,
+                    temperature=config.temperature,
+                    max_tokens=config.max_tokens,
+                    timeout=config.timeout,
+                    **(config.extra_params or {})
+                )
+            
             else:
                 raise ValueError(f"Unsupported LLM provider: {config.provider}")
                 
@@ -244,7 +265,7 @@ class ConfigManager:
                 "mistral", "mixtral", "phi3", "qwen2", "gemma2"
             ],
             LLMProvider.GOOGLE: [
-                "gemini-1.5-pro", "gemini-1.5-flash", "gemini-pro"
+                "gemini-2.5-flash-lite"
             ],
             LLMProvider.FIREWORKS: [
                 "accounts/fireworks/models/llama-v3p1-70b-instruct",

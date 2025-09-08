@@ -61,14 +61,35 @@ class WebChatInterface:
     
     def _on_task_update(self, update: TaskUpdate):
         """Handle task updates from the event listener"""
-        if update.status == TaskStatus.COMPLETED:
+        if update.status in [TaskStatus.COMPLETED, TaskStatus.FAILED]:
             self.running_task = False
-            if update.result:
-                self.chat_messages.append({"role": "assistant", "content": f"✅ **Task Completed**\n\n{update.result}"})
-        elif update.status == TaskStatus.FAILED:
+            if update.status == TaskStatus.COMPLETED:
+                if update.result:
+                    self.chat_messages.append({"role": "assistant", "content": f"✅ **Task Completed**\n\n{update.result}"})
+            else:  # FAILED
+                error_msg = update.error or "Unknown error occurred"
+                self.chat_messages.append({"role": "assistant", "content": f"❌ **Task Failed**\n\n{error_msg}"})
+    
+    def stop_task(self) -> str:
+        """Stop the currently running task"""
+        if not self.running_task or not self.current_agent:
+            return "⚠️ No task is currently running"
+        
+        try:
+            # Stop the agent
+            self.current_agent.stop()
+            
+            # Update state
             self.running_task = False
-            error_msg = update.error or "Unknown error occurred"
-            self.chat_messages.append({"role": "assistant", "content": f"❌ **Task Failed**\n\n{error_msg}"})
+            self.current_task_id = None
+            
+            # Add stop message to chat
+            self.chat_messages.append({"role": "assistant", "content": "⏹️ **Task stopped by user**"})
+            
+            return "✅ Task stopped successfully"
+            
+        except Exception as e:
+            return f"❌ Error stopping task: {str(e)}"
     
     def _get_available_llm_configs(self) -> List[str]:
         """Get list of available LLM configurations"""
@@ -141,24 +162,24 @@ class WebChatInterface:
         finally:
             self.running_task = False
     
-    def _process_chat_message(self, message: str, llm_config: str, history: List[Dict[str, str]]) -> Tuple[List[Dict[str, str]], str]:
+    def _process_chat_message(self, message: str, llm_config: str, history: List[Dict[str, str]]) -> Tuple[List[Dict[str, str]], str, bool]:
         """Process chat message and return updated history"""
         if not message.strip():
-            return history, ""
+            return history, "", False
         
         if self.running_task:
             new_history = history + [
                 {"role": "user", "content": message},
                 {"role": "assistant", "content": "⚠️ A task is already running. Please wait for it to complete."}
             ]
-            return new_history, ""
+            return new_history, "", False
         
         if llm_config == "No LLM configured":
             new_history = history + [
                 {"role": "user", "content": message},
                 {"role": "assistant", "content": "⚠️ Please configure an LLM first."}
             ]
-            return new_history, ""
+            return new_history, "", False
         
         # Add user message to history
         new_history = history + [
@@ -187,7 +208,7 @@ class WebChatInterface:
         # Start background task
         threading.Thread(target=run_async_task, daemon=True).start()
         
-        return new_history, ""
+        return new_history, "", True
     
     def _get_logs(self) -> str:
         """Get current logs as string"""
@@ -230,6 +251,12 @@ class WebChatInterface:
         else:
             return "⚪ **Status:** Idle"
     
+    def _handle_stop_button(self, history: List[Dict[str, str]]) -> Tuple[List[Dict[str, str]], bool]:
+        """Handle stop button click"""
+        result = self.stop_task()
+        new_history = history + [{"role": "assistant", "content": result}]
+        return new_history, False
+    
     def create_interface(self) -> gr.Interface:
         """Create the Gradio interface"""
         
@@ -264,6 +291,7 @@ class WebChatInterface:
                             scale=4
                         )
                         send_btn = gr.Button("Send", variant="primary")
+                        stop_btn = gr.Button("⏹️ Stop", variant="stop", interactive=False)
                 
                 with gr.Column(scale=1):
                     # Configuration panel
@@ -329,10 +357,15 @@ class WebChatInterface:
             
             # Event handlers
             def send_message(message, llm_config, history):
-                return self._process_chat_message(message, llm_config, history)
+                chat_history, cleared_input, enable_stop = self._process_chat_message(message, llm_config, history)
+                return chat_history, cleared_input, gr.Button(interactive=enable_stop)
+            
+            def stop_task_handler(history):
+                chat_history, disable_stop = self._handle_stop_button(history)
+                return chat_history, gr.Button(interactive=disable_stop)
             
             def refresh_llm_configs():
-                return gr.Dropdown(choices=self._get_available_llm_configs())
+                return gr.Dropdown(choices=self._get_available_llm_configs()), gr.Button(interactive=self.running_task)
             
             def update_logs():
                 return self._get_logs()
@@ -342,30 +375,36 @@ class WebChatInterface:
             
             def add_config(name, provider, model, api_key, base_url, temperature):
                 result = self._add_llm_config(name, provider, model, api_key, base_url, temperature)
-                return result, gr.Dropdown(choices=self._get_available_llm_configs())
+                return result, gr.Dropdown(choices=self._get_available_llm_configs()), gr.Button(interactive=self.running_task)
             
             # Wire up events
             send_btn.click(
                 send_message,
                 inputs=[msg_input, llm_dropdown, chatbot],
-                outputs=[chatbot, msg_input]
+                outputs=[chatbot, msg_input, stop_btn]
             )
             
             msg_input.submit(
                 send_message,
                 inputs=[msg_input, llm_dropdown, chatbot],
-                outputs=[chatbot, msg_input]
+                outputs=[chatbot, msg_input, stop_btn]
+            )
+            
+            stop_btn.click(
+                stop_task_handler,
+                inputs=[chatbot],
+                outputs=[chatbot, stop_btn]
             )
             
             refresh_btn.click(
                 refresh_llm_configs,
-                outputs=[llm_dropdown]
+                outputs=[llm_dropdown, stop_btn]
             )
             
             add_config_btn.click(
                 add_config,
                 inputs=[config_name, provider_dropdown, model_input, api_key_input, base_url_input, temperature_slider],
-                outputs=[config_result, llm_dropdown]
+                outputs=[config_result, llm_dropdown, stop_btn]
             )
             
             # Auto-refresh logs and status
