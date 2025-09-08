@@ -1,0 +1,122 @@
+version: '3.8'
+
+services:
+  browser-ai-api:
+    build: .
+    container_name: browser-ai-api
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - BROWSER_AI_LOGGING_LEVEL=info
+      - MLOPS_ENVIRONMENT=production
+    volumes:
+      - mlops_data:/app/mlops/data
+      - model_registry:/app/model_registry
+      - experiments:/app/experiments
+    command: ["python", "-m", "browser_ai_gui.web_app", "--host", "0.0.0.0", "--port", "8000"]
+    restart: unless-stopped
+    depends_on:
+      - redis
+      - prometheus
+    networks:
+      - browserai-network
+
+  mlops-worker:
+    build: .
+    container_name: mlops-worker
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - BROWSER_AI_LOGGING_LEVEL=info
+      - MLOPS_ENVIRONMENT=production
+    volumes:
+      - mlops_data:/app/mlops/data
+      - model_registry:/app/model_registry
+      - experiments:/app/experiments
+    command: ["python", "-m", "mlops.cli", "monitor", "performance", "--hours", "24"]
+    restart: unless-stopped
+    depends_on:
+      - redis
+    networks:
+      - browserai-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: browserai-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    networks:
+      - browserai-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: browserai-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    networks:
+      - browserai-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: browserai-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    networks:
+      - browserai-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: browserai-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - browser-ai-api
+      - grafana
+    restart: unless-stopped
+    networks:
+      - browserai-network
+
+volumes:
+  mlops_data:
+  model_registry:
+  experiments:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  browserai-network:
+    driver: bridge

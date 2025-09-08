@@ -1,0 +1,39 @@
+agent:
+  max_failures: 2
+  max_steps: 50
+  screenshot_on_error: true
+  step_delay: 2.0
+  use_vision: true
+browser:
+  disable_security: false
+  headless: true
+  timeout: 45
+deployment:
+  autoscaling:
+    enabled: true
+    max_replicas: 10
+    min_replicas: 2
+    target_cpu: 60
+  environment: production
+  replicas: 3
+  version: 1.0.0
+environment: production
+feature_flags:
+  enable_advanced_dom_analysis: true
+  enable_conversation_memory: true
+  enable_cost_optimization: true
+llm:
+  api_key_env: OPENAI_API_KEY
+  max_retries: 3
+  model: gpt-4
+  provider: openai
+  temperature: 0.0
+  timeout: 60
+monitoring:
+  alert_thresholds:
+    avg_completion_time: 180
+    error_rate: 0.05
+    success_rate_min: 0.9
+  enable_metrics: true
+  export_metrics_interval: 1800
+  log_level: WARNING

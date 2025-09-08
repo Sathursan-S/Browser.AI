@@ -1,0 +1,20 @@
+browser:
+  disable_security: true
+  headless: false
+deployment:
+  environment: development
+  replicas: 1
+  version: dev
+environment: development
+feature_flags:
+  enable_advanced_dom_analysis: true
+  enable_conversation_memory: true
+  enable_cost_optimization: false
+llm:
+  api_key_env: OPENAI_API_KEY
+  model: gpt-4o-mini
+  provider: openai
+  temperature: 0.1
+monitoring:
+  enable_metrics: true
+  log_level: DEBUG

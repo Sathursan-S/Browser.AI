@@ -1,0 +1,18 @@
+{
+  "experiment_id": "b70c0afd-282a-457f-bad8-bd7fad22f6b5",
+  "experiment_name": "Test Experiment",
+  "description": "Testing MLOps implementation",
+  "tags": [],
+  "created_at": "2025-09-08 15:52:21.264331",
+  "llm_provider": "openai",
+  "llm_model": "gpt-4",
+  "temperature": 0.1,
+  "max_tokens": null,
+  "use_vision": true,
+  "max_steps": 100,
+  "max_failures": 3,
+  "headless": true,
+  "disable_security": true,
+  "timeout": 30,
+  "custom_params": {}
+}

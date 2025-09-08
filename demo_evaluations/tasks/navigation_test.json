@@ -1,0 +1,34 @@
+{
+  "task_id": "navigation_test",
+  "name": "Multi-page Navigation",
+  "description": "Navigate through multiple pages",
+  "task_prompt": "Visit example.com, then navigate to Wikipedia main page, then search for 'artificial intelligence'",
+  "expected_actions": [
+    {
+      "type": "navigate",
+      "url": "http://example.com"
+    },
+    {
+      "type": "navigate",
+      "url": "https://wikipedia.org"
+    },
+    {
+      "type": "type",
+      "text": "artificial intelligence"
+    },
+    {
+      "type": "click",
+      "element": "search"
+    }
+  ],
+  "success_criteria": {
+    "must_visit_example": true,
+    "must_visit_wikipedia": true,
+    "must_perform_search": true,
+    "max_steps": 20
+  },
+  "timeout_seconds": 300,
+  "tags": [],
+  "difficulty": "hard",
+  "category": "navigation"
+}

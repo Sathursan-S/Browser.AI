@@ -1,0 +1,22 @@
+{
+  "model_id": "BrowserAI_anthropic_claude_3_1.0.0_20250908_155529",
+  "name": "BrowserAI_anthropic_claude_3",
+  "version": "1.0.0",
+  "description": "anthropic claude-3 for browser automation",
+  "tags": [],
+  "created_at": "2025-09-08 15:55:29.266507",
+  "created_by": null,
+  "llm_provider": "anthropic",
+  "llm_model": "claude-3",
+  "temperature": 0.0,
+  "max_tokens": null,
+  "system_prompt": null,
+  "success_rate": 0.9379745908305384,
+  "avg_completion_time": 32.46184588713393,
+  "cost_per_task": 0.08435243834334047,
+  "total_evaluations": 1,
+  "status": "registered",
+  "deployment_target": null,
+  "last_deployed": null,
+  "custom_fields": {}
+}

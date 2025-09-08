@@ -1,0 +1,22 @@
+{
+  "model_id": "BrowserAI_openai_gpt_4_1.0.0_20250908_155549",
+  "name": "BrowserAI_openai_gpt_4",
+  "version": "1.0.0",
+  "description": "openai gpt-4 for browser automation",
+  "tags": [],
+  "created_at": "2025-09-08 15:55:49.027509",
+  "created_by": null,
+  "llm_provider": "openai",
+  "llm_model": "gpt-4",
+  "temperature": 0.1,
+  "max_tokens": null,
+  "system_prompt": null,
+  "success_rate": 0.8921705106349468,
+  "avg_completion_time": 108.4747741162695,
+  "cost_per_task": 0.14471882412241038,
+  "total_evaluations": 2,
+  "status": "registered",
+  "deployment_target": null,
+  "last_deployed": null,
+  "custom_fields": {}
+}

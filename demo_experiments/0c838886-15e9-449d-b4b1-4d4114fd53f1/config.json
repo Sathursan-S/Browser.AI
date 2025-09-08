@@ -1,0 +1,18 @@
+{
+  "experiment_id": "0c838886-15e9-449d-b4b1-4d4114fd53f1",
+  "experiment_name": "Model_Comparison_Experiment_3",
+  "description": "Testing anthropic/claude-3",
+  "tags": [],
+  "created_at": "2025-09-08 15:55:49.029960",
+  "llm_provider": "anthropic",
+  "llm_model": "claude-3",
+  "temperature": 0.0,
+  "max_tokens": null,
+  "use_vision": true,
+  "max_steps": 100,
+  "max_failures": 3,
+  "headless": true,
+  "disable_security": true,
+  "timeout": 30,
+  "custom_params": {}
+}

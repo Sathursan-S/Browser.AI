@@ -1,0 +1,28 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'browser-ai-api'
+    static_configs:
+      - targets: ['browser-ai-api:8000']
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  - job_name: 'mlops-worker'
+    static_configs:
+      - targets: ['mlops-worker:8000']
+    metrics_path: /metrics
+    scrape_interval: 60s
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+rule_files:
+  - "alert_rules.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093

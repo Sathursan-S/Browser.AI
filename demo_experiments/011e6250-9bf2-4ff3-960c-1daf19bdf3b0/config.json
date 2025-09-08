@@ -1,0 +1,18 @@
+{
+  "experiment_id": "011e6250-9bf2-4ff3-960c-1daf19bdf3b0",
+  "experiment_name": "Model_Comparison_Experiment_1",
+  "description": "Testing openai/gpt-4",
+  "tags": [],
+  "created_at": "2025-09-08 15:55:49.027967",
+  "llm_provider": "openai",
+  "llm_model": "gpt-4",
+  "temperature": 0.1,
+  "max_tokens": null,
+  "use_vision": true,
+  "max_steps": 100,
+  "max_failures": 3,
+  "headless": true,
+  "disable_security": true,
+  "timeout": 30,
+  "custom_params": {}
+}
