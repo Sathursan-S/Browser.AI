@@ -47,7 +47,6 @@ from browser_ai.dom.history_tree_processor.service import (
 	DOMHistoryElement,
 	HistoryTreeProcessor,
 )
-
 from browser_ai.utils import time_execution_async
 
 load_dotenv()
