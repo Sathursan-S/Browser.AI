@@ -39,6 +39,15 @@ dev = [
     "hatch>=1.13.0",
     "build>=1.2.2",
 ]
+gui = [
+    "flask>=2.3.0",
+    "flask-socketio>=5.3.0",
+    "eventlet>=0.33.0",
+]
+
+[project.scripts]
+browser-ai-web = "browser_ai_gui.main:run_web_app"
+browser-ai-desktop = "browser_ai_gui.main:run_tkinter_gui"
 
 [tool.ruff]
 line-length = 130
