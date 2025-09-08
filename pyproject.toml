@@ -31,6 +31,7 @@ dependencies = [
     "lmnr[langchain]>=0.4.59",
     "markdownify==0.14.1",
     "gradio>=5.44.1",
+    "PySide6>=6.5.0",
 ]
 
 [project.optional-dependencies]
