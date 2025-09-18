@@ -47,7 +47,6 @@ from browser_ai.dom.history_tree_processor.service import (
 	DOMHistoryElement,
 	HistoryTreeProcessor,
 )
-
 from browser_ai.utils import time_execution_async
 
 load_dotenv()
@@ -196,7 +195,7 @@ class Agent:
 		try:
 			import pkg_resources
 
-			version = pkg_resources.get_distribution('browser-use').version
+			version = pkg_resources.get_distribution('browser-ai').version
 			source = 'pip'
 		except Exception:
 			try:
@@ -213,15 +212,15 @@ class Agent:
 
 	def _set_model_names(self) -> None:
 		self.chat_model_library = self.llm.__class__.__name__
-		self.model_name = "Unknown"
+		self.model_name = 'Unknown'
 		# Check for 'model_name' attribute first
-		if hasattr(self.llm, "model_name"):
+		if hasattr(self.llm, 'model_name'):
 			model = self.llm.model_name
-			self.model_name = model if model is not None else "Unknown"
+			self.model_name = model if model is not None else 'Unknown'
 		# Fallback to 'model' attribute if needed
-		elif hasattr(self.llm, "model"):
+		elif hasattr(self.llm, 'model'):
 			model = self.llm.model
-			self.model_name = model if model is not None else "Unknown"
+			self.model_name = model if model is not None else 'Unknown'
 
 		if self.planner_llm:
 			if hasattr(self.planner_llm, 'model_name'):
@@ -546,7 +545,6 @@ class Agent:
 
 			return self.history
 		finally:
-
 			if not self.injected_browser_context:
 				await self.browser_context.close()
 
@@ -609,6 +607,7 @@ class Agent:
 			"""
 			Validation results.
 			"""
+
 			is_valid: bool
 			reason: str
 
@@ -817,7 +816,7 @@ class Agent:
 		logo = None
 		if show_logo:
 			try:
-				logo = Image.open('./static/browser-use.png')
+				logo = Image.open('./static/browser-ai.png')
 				# Resize logo to be small (e.g., 40px height)
 				logo_height = 150
 				aspect_ratio = logo.width / logo.height
@@ -1075,9 +1074,9 @@ class Agent:
 		# Draw screenshot
 		frame.paste(screenshot_img, (screenshot_x, screenshot_y))
 
-		# Load browser-use logo
-		logo_size = 100  # Increased size for browser-use logo
-		logo_path = os.path.join(os.path.dirname(__file__), 'assets/browser-use-logo.png')
+		# Load Browser.AI logo
+		logo_size = 100  # Increased size for browser-ai logo
+		logo_path = os.path.join(os.path.dirname(__file__), 'assets/browser-ai-logo.png')
 		if os.path.exists(logo_path):
 			logo = Image.open(logo_path)
 			logo.thumbnail((logo_size, logo_size))
@@ -1119,7 +1118,7 @@ class Agent:
 			fill='#f0f0f0',
 		)
 
-		# Draw browser-use small logo in top left of goal box
+		# Draw Browser.AI small logo in top left of goal box
 		small_logo_size = 30
 		if os.path.exists(logo_path):
 			small_logo = Image.open(logo_path)

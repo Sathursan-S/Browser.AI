@@ -13,7 +13,6 @@ from browser_ai.controller.registry.views import (
 )
 
 
-
 class Registry:
 	"""Service for registering and managing actions"""
 

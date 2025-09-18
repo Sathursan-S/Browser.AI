@@ -63,7 +63,7 @@ class AgentOutput(BaseModel):
 			action=(list[custom_actions], Field(...)),  # Properly annotated field with no default
 			__module__=AgentOutput.__module__,
 		)
-		model_.__doc__ = "AgentOutput model"
+		model_.__doc__ = 'AgentOutput model'
 		return model_
 
 
