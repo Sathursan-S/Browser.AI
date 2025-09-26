@@ -18,7 +18,9 @@ from browser_ai.controller.views import (
 	NoParamsAction,
 	OpenTabAction,
 	ScrollAction,
+	SearchEcommerceAction,
 	SearchGoogleAction,
+	SearchYouTubeAction,
 	SendKeysAction,
 	SwitchTabAction,
 )
@@ -55,14 +57,56 @@ class Controller:
 
 		# Basic Navigation Actions
 		@self.registry.action(
-			'Search the query in Google in the current tab, the query should be a search query like humans search in Google, concrete and not vague or super long. More the single most important items. ',
+			'Search the query in Google in the current tab. The query should be a search query like humans search in Google, concrete and not vague or super long. For shopping/buying tasks, consider using search_ecommerce instead to avoid CAPTCHAs.',
 			param_model=SearchGoogleAction,
 		)
 		async def search_google(params: SearchGoogleAction, browser: BrowserContext):
 			page = await browser.get_current_page()
-			await page.goto(f'https://www.google.com/search?q={params.query}&udm=14')
+			# Try to avoid CAPTCHAs by not using shopping mode for general searches
+			await page.goto(f'https://www.google.com/search?q={params.query}')
 			await page.wait_for_load_state()
 			msg = f'🔍  Searched for "{params.query}" in Google'
+			logger.info(msg)
+			return ActionResult(extracted_content=msg, include_in_memory=True)
+
+		@self.registry.action(
+			'Search for videos on YouTube directly. Perfect for finding specific songs, music videos, tutorials, or any video content.',
+			param_model=SearchYouTubeAction,
+		)
+		async def search_youtube(params: SearchYouTubeAction, browser: BrowserContext):
+			page = await browser.get_current_page()
+			search_query = params.query.replace(' ', '+')
+			await page.goto(f'https://www.youtube.com/results?search_query={search_query}')
+			await page.wait_for_load_state()
+			msg = f'🎥  Searched for "{params.query}" on YouTube'
+			logger.info(msg)
+			return ActionResult(extracted_content=msg, include_in_memory=True)
+
+		@self.registry.action(
+			'Search for products on popular e-commerce sites. Specify site for targeted search (daraz.lk, ikman.lk, glomark.lk) or leave blank for Daraz (most popular in Sri Lanka).',
+			param_model=SearchEcommerceAction,
+		)
+		async def search_ecommerce(params: SearchEcommerceAction, browser: BrowserContext):
+			page = await browser.get_current_page()
+			search_query = params.query.replace(' ', '+')
+			
+			# Default to Daraz.lk if no site specified
+			site = params.site or 'daraz.lk'
+			
+			# Handle different e-commerce sites
+			if 'daraz' in site.lower():
+				search_url = f'https://www.daraz.lk/search/?q={search_query}'
+			elif 'ikman' in site.lower():
+				search_url = f'https://ikman.lk/search?q={search_query}'
+			elif 'glomark' in site.lower():
+				search_url = f'https://glomark.lk/search?q={search_query}'
+			else:
+				# Fallback to Daraz
+				search_url = f'https://www.daraz.lk/search/?q={search_query}'
+			
+			await page.goto(search_url)
+			await page.wait_for_load_state()
+			msg = f'🛒  Searched for "{params.query}" on {site}'
 			logger.info(msg)
 			return ActionResult(extracted_content=msg, include_in_memory=True)
 
@@ -266,6 +310,71 @@ class Controller:
 				msg = f"Failed to scroll to text '{text}': {str(e)}"
 				logger.error(msg)
 				return ActionResult(error=msg, include_in_memory=True)
+
+		@self.registry.action(
+			description='Automatically scroll down to find specific text or element type. Useful when expected elements like "Buy Now", "Add to Cart" are not visible.',
+		)
+		async def auto_scroll_find(text: str, browser: BrowserContext, max_scrolls: int = 3):  # type: ignore
+			page = await browser.get_current_page()
+			
+			for scroll_attempt in range(max_scrolls):
+				try:
+					# Check if the text exists on current view
+					if await page.get_by_text(text, exact=False).count() > 0:
+						msg = f'🔍  Found "{text}" after {scroll_attempt} scrolls'
+						logger.info(msg)
+						return ActionResult(extracted_content=msg, include_in_memory=True)
+					
+					# Scroll down and wait a bit for content to load
+					await page.evaluate('window.scrollBy(0, window.innerHeight);')
+					await asyncio.sleep(1)
+					
+				except Exception as e:
+					logger.debug(f'Auto scroll attempt {scroll_attempt} failed: {str(e)}')
+					continue
+			
+			msg = f'🔍  Could not find "{text}" after {max_scrolls} scroll attempts'
+			logger.info(msg)
+			return ActionResult(extracted_content=msg, include_in_memory=True)
+
+		@self.registry.action(
+			description='Smart scroll to find common shopping/purchase elements like "Buy Now", "Add to Cart", "Checkout", etc. Useful for e-commerce sites.',
+		)
+		async def find_purchase_elements(browser: BrowserContext):  # type: ignore
+			page = await browser.get_current_page()
+			
+			# Common purchase-related texts to look for
+			purchase_texts = [
+				"Buy Now", "Add to Cart", "Add to Bag", "Purchase", "Order Now", 
+				"Checkout", "Proceed to Checkout", "Continue", "Place Order", 
+				"Add to Basket", "Buy", "Shop Now", "Get Now"
+			]
+			
+			# Scroll down up to 5 times looking for purchase elements
+			for scroll_attempt in range(5):
+				try:
+					# Check for any purchase-related text
+					found_elements = []
+					for text in purchase_texts:
+						if await page.get_by_text(text, exact=False).count() > 0:
+							found_elements.append(text)
+					
+					if found_elements:
+						msg = f'🛒  Found purchase elements after {scroll_attempt} scrolls: {", ".join(found_elements)}'
+						logger.info(msg)
+						return ActionResult(extracted_content=msg, include_in_memory=True)
+					
+					# Scroll down and wait for content to load
+					await page.evaluate('window.scrollBy(0, window.innerHeight);')
+					await asyncio.sleep(1.5)
+					
+				except Exception as e:
+					logger.debug(f'Purchase element search attempt {scroll_attempt} failed: {str(e)}')
+					continue
+			
+			msg = f'🛒  Could not find purchase elements after 5 scroll attempts'
+			logger.info(msg)
+			return ActionResult(extracted_content=msg, include_in_memory=True)
 
 		@self.registry.action(
 			description='Get all options from a native dropdown',
