@@ -8,6 +8,15 @@ class SearchGoogleAction(BaseModel):
 	query: str
 
 
+class SearchYouTubeAction(BaseModel):
+	query: str
+
+
+class SearchEcommerceAction(BaseModel):
+	query: str
+	site: Optional[str] = None  # e.g., 'daraz.lk', 'ikman.lk', 'glomark.lk'
+
+
 class GoToUrlAction(BaseModel):
 	url: str
 
