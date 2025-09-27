@@ -94,9 +94,14 @@ class TaskManager:
                         {"error": str(e)}
                     )
                 finally:
-                    self.is_running = False
-                    self.current_agent = None
-                    self.current_task = None
+                    # Only clean up if the task is actually done or stopped
+                    if self.current_agent and (self.current_agent._stopped or not self.is_running):
+                        print("Task completed or stopped - cleaning up agent reference")
+                        self.is_running = False
+                        self.current_agent = None
+                        self.current_task = None
+                    else:
+                        print("Agent still running or paused - keeping reference")
             
             self.task_thread = threading.Thread(target=run_agent, daemon=True)
             self.task_thread.start()
@@ -141,10 +146,16 @@ class TaskManager:
     
     def resume_task(self) -> Dict[str, Any]:
         """Resume the current task"""
-        if not self.is_running or not self.current_agent:
-            return {"success": False, "error": "No task running"}
+        print(f"Resume task called - is_running: {self.is_running}, has_agent: {self.current_agent is not None}")
+        
+        if not self.is_running:
+            return {"success": False, "error": "No task currently running"}
+        
+        if not self.current_agent:
+            return {"success": False, "error": "No agent available to resume"}
         
         try:
+            print(f"Calling resume on agent: {id(self.current_agent)}")
             self.current_agent.resume()
             self.event_adapter.emit_custom_event(
                 EventType.AGENT_RESUME,
@@ -153,6 +164,7 @@ class TaskManager:
             )
             return {"success": True, "message": "Task resumed successfully"}
         except Exception as e:
+            print(f"Error resuming task: {str(e)}")
             return {"success": False, "error": str(e)}
     
     def get_status(self) -> Dict[str, Any]:
@@ -278,14 +290,16 @@ class WebApp:
             result = self.task_manager.stop_task()
             return jsonify(result)
         
+        @self.app.route('/api/task/resume', methods=['POST'])
+        def resume_task():
+            print(f"DEBUG: Resume task endpoint called")
+            result = self.task_manager.resume_task()
+            print(f"DEBUG: Resume result: {result}")
+            return jsonify(result)
+        
         @self.app.route('/api/task/pause', methods=['POST'])
         def pause_task():
             result = self.task_manager.pause_task()
-            return jsonify(result)
-        
-        @self.app.route('/api/task/resume', methods=['POST'])
-        def resume_task():
-            result = self.task_manager.resume_task()
             return jsonify(result)
     
     def _setup_socketio_events(self):
@@ -308,6 +322,18 @@ class WebApp:
         def handle_status_request():
             status = self.task_manager.get_status()
             emit('status_update', status)
+        
+        @self.socketio.on('resume_after_user_help')
+        def handle_user_help_completed():
+            """Handle user completing CAPTCHA or other manual intervention"""
+            try:
+                print(f"DEBUG: Socket resume_after_user_help called")
+                result = self.task_manager.resume_task()
+                print(f"DEBUG: Socket resume result: {result}")
+                emit('user_help_response', result)
+            except Exception as e:
+                print(f"DEBUG: Socket resume error: {e}")
+                emit('user_help_response', {"success": False, "error": str(e)})
     
     def _on_log_event(self, event: LogEvent):
         """Handle log events from event adapter"""

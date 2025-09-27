@@ -36,6 +36,7 @@ class EventType(Enum):
     AGENT_PAUSE = "agent_pause"
     AGENT_RESUME = "agent_resume"
     AGENT_STOP = "agent_stop"
+    USER_HELP_NEEDED = "user_help_needed"
 
 
 @dataclass
@@ -113,6 +114,8 @@ class LogCapture(logging.Handler):
             return EventType.AGENT_COMPLETE
         elif "error" in message or "failed" in message or "❌" in record.getMessage():
             return EventType.AGENT_ERROR
+        elif "requesting user help" in message or "🙋‍♂️" in record.getMessage() or "task requires user intervention" in message:
+            return EventType.USER_HELP_NEEDED
         elif "pausing" in message or "🔄" in record.getMessage():
             return EventType.AGENT_PAUSE
         elif "resuming" in message or "▶️" in record.getMessage():
