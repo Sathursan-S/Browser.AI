@@ -1,0 +1,106 @@
+[
+  {
+    "name": "google_search_basic",
+    "task_description": "Go to Google and search for 'OpenAI'",
+    "expected_outcome": "Search results showing OpenAI related information",
+    "success_criteria": ["openai", "results", "search"],
+    "max_steps": 10,
+    "timeout_seconds": 60,
+    "metadata": {
+      "category": "search",
+      "difficulty": "easy",
+      "purpose": "Basic search functionality test"
+    }
+  },
+  {
+    "name": "wikipedia_navigation",
+    "task_description": "Navigate to Wikipedia and search for 'Machine Learning', then click on the first result",
+    "expected_outcome": "Successfully navigate to the Machine Learning Wikipedia page",
+    "success_criteria": ["machine learning", "wikipedia", "article"],
+    "max_steps": 15,
+    "timeout_seconds": 90,
+    "metadata": {
+      "category": "navigation",
+      "difficulty": "medium",
+      "purpose": "Multi-step navigation test"
+    }
+  },
+  {
+    "name": "github_repository_search",
+    "task_description": "Go to GitHub and search for 'browser automation' repositories, then extract information about the first 3 repositories",
+    "expected_outcome": "List of browser automation repositories with their descriptions",
+    "success_criteria": ["repository", "automation", "github", "description"],
+    "max_steps": 20,
+    "timeout_seconds": 120,
+    "metadata": {
+      "category": "data_extraction",
+      "difficulty": "medium",
+      "purpose": "Repository search and data extraction test"
+    }
+  },
+  {
+    "name": "form_filling_contact",
+    "task_description": "Find a contact form on a website and fill it with: Name='Test User', Email='test@example.com', Message='Testing Browser.AI automation'",
+    "expected_outcome": "Successfully fill and submit a contact form",
+    "success_criteria": ["test user", "test@example.com", "submitted", "form"],
+    "max_steps": 25,
+    "timeout_seconds": 150,
+    "metadata": {
+      "category": "form_interaction",
+      "difficulty": "hard",
+      "purpose": "Form filling and submission test"
+    }
+  },
+  {
+    "name": "ecommerce_product_search",
+    "task_description": "Go to an e-commerce site, search for 'laptop', and extract the names and prices of the first 5 products",
+    "expected_outcome": "List of laptop products with names and prices",
+    "success_criteria": ["laptop", "price", "product", "name"],
+    "max_steps": 30,
+    "timeout_seconds": 180,
+    "metadata": {
+      "category": "ecommerce",
+      "difficulty": "hard",
+      "purpose": "Product search and price extraction test"
+    }
+  },
+  {
+    "name": "social_media_login",
+    "task_description": "Navigate to a social media platform login page and verify the login form elements are present",
+    "expected_outcome": "Identify and verify login form elements (username, password, submit button)",
+    "success_criteria": ["login", "username", "password", "button"],
+    "max_steps": 15,
+    "timeout_seconds": 90,
+    "metadata": {
+      "category": "authentication",
+      "difficulty": "medium",
+      "purpose": "Login form identification test"
+    }
+  },
+  {
+    "name": "news_headline_extraction",
+    "task_description": "Visit a news website and extract the top 5 headlines from the homepage",
+    "expected_outcome": "List of current news headlines",
+    "success_criteria": ["headline", "news", "article", "title"],
+    "max_steps": 20,
+    "timeout_seconds": 120,
+    "metadata": {
+      "category": "content_extraction",
+      "difficulty": "medium",
+      "purpose": "News content extraction test"
+    }
+  },
+  {
+    "name": "weather_information_lookup",
+    "task_description": "Go to a weather website and find the current temperature and conditions for New York City",
+    "expected_outcome": "Current weather information for New York City",
+    "success_criteria": ["new york", "temperature", "weather", "condition"],
+    "max_steps": 15,
+    "timeout_seconds": 90,
+    "metadata": {
+      "category": "information_lookup",
+      "difficulty": "easy",
+      "purpose": "Weather information extraction test"
+    }
+  }
+]
