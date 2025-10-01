@@ -1,5 +1,4 @@
 import hashlib
-from dataclasses import dataclass
 from typing import Optional
 
 from browser_ai.dom.history_tree_processor.view import DOMHistoryElement, HashedDomElement

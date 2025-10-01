@@ -51,6 +51,7 @@ class ScrollAction(BaseModel):
 class SendKeysAction(BaseModel):
 	keys: str
 
+
 class ExtractPageContentAction(BaseModel):
     value: str
 

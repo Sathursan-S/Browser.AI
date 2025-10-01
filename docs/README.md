@@ -1,5 +1,5 @@
 # Browser.AI Documentation
-
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Sathursan-S/Browser.AI)
 Comprehensive technical documentation for the Browser.AI framework - a sophisticated browser automation system that makes websites accessible for AI agents.
 
 ## Documentation Overview

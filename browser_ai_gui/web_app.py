@@ -6,17 +6,15 @@ and chat-based task management.
 """
 
 import asyncio
-import json
-import threading
-from datetime import datetime
-from typing import Dict, Any, Optional
-
-from flask import Flask, render_template, request, jsonify, send_from_directory
-from flask_socketio import SocketIO, emit, disconnect
 import os
+import threading
+from typing import Any, Dict, Optional
+
+from flask import Flask, jsonify, render_template, request, send_from_directory
+from flask_socketio import SocketIO, emit
 
 from .config import ConfigManager
-from .event_adapter import EventAdapter, LogEvent, EventType, LogLevel
+from .event_adapter import EventAdapter, EventType, LogEvent, LogLevel
 
 
 class TaskManager:
@@ -372,6 +370,6 @@ class WebApp:
             self.event_adapter.stop()
 
 
-if __name__ == "__main__":
-    app = WebApp()
-    app.run(debug=True)
+if __name__ == '__main__':
+	app = WebApp()
+	app.run(debug=True)
