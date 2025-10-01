@@ -32,6 +32,9 @@ class ActionResult(BaseModel):
 	extracted_content: Optional[str] = None
 	error: Optional[str] = None
 	include_in_memory: bool = False  # whether to include in past messages as context or not
+	requires_user_action: Optional[bool] = False  # whether the action requires user intervention
+	user_action_type: Optional[str] = None  # type of user action needed (e.g., "captcha", "verification")
+	user_action_message: Optional[str] = None  # message to display to user
 
 
 class AgentBrain(BaseModel):

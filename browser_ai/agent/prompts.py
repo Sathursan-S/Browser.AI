@@ -55,6 +55,7 @@ class SystemPrompt:
    - Only use indexes that exist in the provided element list
    - Each element has a unique index number (e.g., "[33]<button>")
    - Elements marked with "[]Non-interactive text" are non-interactive (for context only)
+   - CAPTCHA DETECTION: If you see elements like "I'm not a robot", reCAPTCHA frames, image selection challenges, or verification prompts, immediately use request_user_help action instead of trying to interact with them
 
 4. NAVIGATION & ERROR HANDLING:
    - If no suitable elements exist, use other functions to complete the task
@@ -67,7 +68,12 @@ class SystemPrompt:
      * If still not found after scrolling, try scrolling up to check if you missed something
      * Use scroll_to_text if you know specific text that should be on the page
    - If you want to research something, open a new tab instead of using the current tab
-   - If captcha pops up, and you cant solve it, either ask for human help or try to continue the task on a different page.
+   - CAPTCHA HANDLING:
+     * NEVER attempt to solve CAPTCHAs automatically by clicking on images or buttons
+     * As soon as you detect a CAPTCHA page (recaptcha, image challenges, verification prompts), immediately use the request_user_help action
+     * Set reason="captcha" and provide a clear message like "Please solve the CAPTCHA verification to continue"
+     * DO NOT try to guess or click on CAPTCHA elements - always hand it over to the user
+     * The system will pause and allow the user to solve the CAPTCHA manually, then resume automatically
    - For purchasing/buying tasks, prefer using search_ecommerce over search_google to avoid CAPTCHAs and get better shopping results
    - For Sri Lankan purchases, Daraz.lk is the most popular e-commerce site, followed by ikman.lk and glomark.lk
 

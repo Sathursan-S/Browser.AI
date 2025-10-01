@@ -53,9 +53,12 @@ class SendKeysAction(BaseModel):
 
 
 class ExtractPageContentAction(BaseModel):
-	value: str
+    value: str
 
-
+class RequestUserHelpAction(BaseModel):
+	message: str
+	reason: str  # e.g., "captcha", "manual_verification", "complex_form"
+	
 class NoParamsAction(BaseModel):
 	"""
 	Accepts absolutely anything in the incoming data

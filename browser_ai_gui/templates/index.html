@@ -355,6 +355,11 @@
             cursor: not-allowed;
         }
 
+        .button-group {
+            display: flex;
+            align-items: center;
+        }
+
         .typing-indicator {
             display: none;
             padding: 8px 16px;
@@ -442,6 +447,103 @@
                 width: 250px;
                 transition: width 0.3s ease, border-right 0.3s ease;
             }
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 10000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 10% auto;
+            padding: 30px;
+            border: none;
+            border-radius: 12px;
+            width: 80%;
+            max-width: 500px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            position: relative;
+            text-align: center;
+        }
+
+        .modal-close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            position: absolute;
+            right: 15px;
+            top: 15px;
+            cursor: pointer;
+        }
+
+        .modal-close:hover,
+        .modal-close:focus {
+            color: #333;
+        }
+
+        .modal h3 {
+            margin-top: 0;
+            color: #333;
+            font-size: 24px;
+        }
+
+        .modal-instructions {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        .modal-instructions ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+
+        .modal-instructions li {
+            margin: 8px 0;
+            font-size: 16px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 25px;
+        }
+
+        .modal-actions .btn {
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 6px;
+        }
+
+        .auto-resume-note {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 10px;
+            margin-top: 15px;
+            border-radius: 4px;
+        }
+
+        .auto-resume-note small {
+            color: #1976d2;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.7); }
+            to { opacity: 1; transform: scale(1); }
         }
     </style>
 </head>
@@ -573,7 +675,9 @@
             <div class="chat-input-container">
                 <div class="chat-input-wrapper">
                     <textarea class="chat-input" id="chatInput" placeholder="Describe what you'd like me to do (e.g., 'Search for Python tutorials on Google and summarize the top 5 results')" rows="1"></textarea>
-                    <button class="send-button" id="sendBtn" onclick="sendMessage()">Send</button>
+                    <div class="button-group">
+                        <button class="send-button" id="sendBtn" onclick="sendMessage()">Send</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -602,6 +706,15 @@
 
         socket.on('status_update', function(status) {
             updateStatus(status);
+        });
+
+        socket.on('user_help_response', function(response) {
+            if (response.success) {
+                closeCaptchaModal();
+                addSystemMessage('Task resumed successfully');
+            } else {
+                addSystemMessage('Error resuming task: ' + response.error, 'error');
+            }
         });
 
         // Configuration management
@@ -815,6 +928,9 @@
         }
 
         function handleLogEvent(event) {
+            // Add debugging for CAPTCHA detection
+            console.log('Log event received:', event.event_type, event.message);
+            
             // Format the log message
             let messageType = 'system';
             let content = event.message;
@@ -826,6 +942,11 @@
             } else if (event.event_type === 'agent_complete') {
                 hideTypingIndicator();
                 updateStatus({ is_running: false, current_task: null });
+            } else if (event.event_type === 'user_help_needed') {
+                console.log('CAPTCHA detected, showing modal');
+                showCaptchaModal(content);
+                hideTypingIndicator();
+                return; // Don't add to chat, modal handles it
             }
             
             // Add to chat if it's significant
@@ -887,6 +1008,97 @@
             }
         }
 
+        // CAPTCHA Modal Functions
+        function showCaptchaModal(message) {
+            console.log('showCaptchaModal called with message:', message);
+            const modal = document.getElementById('captchaModal');
+            const messageDiv = document.getElementById('captchaMessage');
+            
+            // Update message if provided
+            if (message && message.includes('Requesting user help:')) {
+                const helpMessage = message.substring(message.indexOf(':') + 1).trim();
+                messageDiv.textContent = helpMessage;
+            } else {
+                messageDiv.textContent = message || 'The agent needs your help to continue.';
+            }
+            
+            modal.style.display = 'block';
+            console.log('Modal should now be visible');
+            
+            // Add to chat log
+            addSystemMessage('⚠️ Task paused - User assistance required');
+            
+            // Start monitoring for auto-resume
+            startAutoResumeMonitoring();
+        }
+
+        let autoResumeInterval;
+        
+        function startAutoResumeMonitoring() {
+            // Check every 3 seconds if the task has auto-resumed
+            autoResumeInterval = setInterval(() => {
+                // Listen for resume events
+                socket.once('log_event', (event) => {
+                    if (event.message.includes('auto-resuming task') || 
+                        event.message.includes('resuming task') || 
+                        event.event_type === 'agent_resume') {
+                        console.log('Auto-resume detected, closing modal');
+                        closeCaptchaModal();
+                        addSystemMessage('✅ Task auto-resumed - CAPTCHA completed successfully');
+                        clearInterval(autoResumeInterval);
+                    }
+                });
+            }, 3000);
+        }
+
+        function closeCaptchaModal() {
+            console.log('Closing CAPTCHA modal');
+            const modal = document.getElementById('captchaModal');
+            modal.style.display = 'none';
+            
+            // Clear auto-resume monitoring
+            if (autoResumeInterval) {
+                clearInterval(autoResumeInterval);
+                autoResumeInterval = null;
+            }
+        }
+
+        function continueAfterUserHelp() {
+            console.log('Continue after user help clicked');
+            
+            // Emit socket event to resume task
+            console.log('Emitting socket resume event');
+            socket.emit('resume_after_user_help');
+            
+            // Also call REST API as backup
+            console.log('Calling REST API resume');
+            fetch('/api/task/resume', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(result => {
+                console.log('Resume API result:', result);
+                if (result.success) {
+                    closeCaptchaModal();
+                    addSystemMessage('✅ Task resumed - continuing...');
+                    showTypingIndicator();
+                } else {
+                    addSystemMessage('❌ Error resuming task: ' + (result.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Resume API error:', error);
+                addSystemMessage('❌ Error resuming task: ' + error.message, 'error');
+            });
+        }
+
+        function addSystemMessage(message, type = 'system') {
+            addMessage(message, type);
+        }
+
         function toggleSidebar() {
             const sidebar = document.querySelector('.sidebar');
             const mainContent = document.querySelector('.main-content');
@@ -944,5 +1156,36 @@
                 .catch(error => console.error('Error checking status:', error));
         }, 5000);
     </script>
+    
+    <!-- CAPTCHA Help Modal -->
+    <div id="captchaModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeCaptchaModal()">&times;</span>
+            <h3>🤖 User Assistance Required</h3>
+            <div id="captchaMessage">
+                The agent has encountered a CAPTCHA or other verification that requires manual intervention.
+            </div>
+            <div class="modal-instructions">
+                <p>Please:</p>
+                <ol>
+                    <li><strong>Switch to the browser window</strong></li>
+                    <li><strong>Complete the CAPTCHA or verification manually</strong></li>
+                    <li><strong>Wait for the page to load</strong> - The task will resume automatically when the page changes</li>
+                    <li>Or click "Continue Task" below if the page has already changed</li>
+                </ol>
+                <div class="auto-resume-note">
+                    <small>💡 <em>The task will auto-resume when it detects you've solved the CAPTCHA</em></small>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button id="continueTaskBtn" class="btn btn-primary" onclick="continueAfterUserHelp()">
+                    ✅ Continue Task
+                </button>
+                <button id="stopTaskBtn" class="btn btn-danger" onclick="stopTask()">
+                    ❌ Stop Task
+                </button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

@@ -312,6 +312,37 @@ class Agent:
 			)
 			self._last_result = result
 
+			# Check if any action requires user intervention
+			if any(action_result.requires_user_action for action_result in result if action_result.requires_user_action):
+				logger.warning('🙋‍♂️ Task requires user intervention - pausing execution')
+				
+				# Store the current page URL to detect when user completes the intervention
+				current_page = await self.browser_context.get_current_page()
+				original_url = current_page.url
+				logger.info(f'Original page URL: {original_url}')
+				
+				self._paused = True
+				
+				# Wait for either manual resume or automatic detection of page change
+				while self._paused:
+					await asyncio.sleep(2)  # Check every 2 seconds
+					
+					# Check if page has changed (indicating user solved CAPTCHA)
+					try:
+						current_page = await self.browser_context.get_current_page()
+						new_url = current_page.url
+						
+						# If URL changed significantly, assume user completed the intervention
+						if new_url != original_url and 'sorry' not in new_url.lower() and 'captcha' not in new_url.lower():
+							logger.info(f'🔄 Page changed from {original_url} to {new_url}')
+							logger.info('✅ Detected user completed intervention - auto-resuming task')
+							self._paused = False
+							break
+					except Exception as e:
+						logger.debug(f'Error checking page URL: {e}')
+				
+				logger.info('▶️ User intervention completed - resuming task')
+
 			if len(result) > 0 and result[-1].is_done:
 				logger.info(f'📄 Result: {result[-1].extracted_content}')
 
@@ -1170,7 +1201,9 @@ class Agent:
 	def resume(self) -> None:
 		"""Resume the agent"""
 		logger.info('▶️ Agent resuming')
+		logger.info(f'Current paused state: {self._paused}')
 		self._paused = False
+		logger.info(f'New paused state: {self._paused}')
 
 	def stop(self) -> None:
 		"""Stop the agent"""

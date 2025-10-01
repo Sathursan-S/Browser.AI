@@ -17,6 +17,7 @@ from browser_ai.controller.views import (
 	InputTextAction,
 	NoParamsAction,
 	OpenTabAction,
+	RequestUserHelpAction,
 	ScrollAction,
 	SearchEcommerceAction,
 	SearchGoogleAction,
@@ -541,6 +542,33 @@ class Controller:
 				msg = f'Selection failed: {str(e)}'
 				logger.error(msg)
 				return ActionResult(error=msg, include_in_memory=True)
+
+		# User Assistance Actions
+		@self.registry.action(
+			'IMMEDIATELY request help from user when encountering ANY CAPTCHAs, reCAPTCHA challenges, "I\'m not a robot" checkboxes, image selection challenges, or verification prompts. DO NOT attempt to solve them automatically. This is the PREFERRED approach for all human verification systems.',
+			param_model=RequestUserHelpAction,
+		)
+		async def request_user_help(params: RequestUserHelpAction, browser: BrowserContext):
+			msg = f'🙋‍♂️ Requesting user help: {params.message}'
+			logger.warning(msg)
+			logger.warning(f'Reason: {params.reason}')
+			
+			# Get current page info to help user understand context
+			try:
+				page = await browser.get_current_page()
+				current_url = page.url
+				logger.info(f'Current page: {current_url}')
+			except Exception as e:
+				current_url = "Unknown"
+			
+			# This will create a special result that signals the web interface to pause and request user input
+			return ActionResult(
+				extracted_content=f"{msg} - Please check the browser window at {current_url}", 
+				include_in_memory=True,
+				requires_user_action=True,
+				user_action_type=params.reason,
+				user_action_message=params.message
+			)
 
 	def action(self, description: str, **kwargs):
 		"""Decorator for registering custom actions
