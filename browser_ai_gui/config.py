@@ -54,8 +54,9 @@ class AgentConfig:
 	retry_delay: int = 10
 	max_steps: int = 100
 	generate_gif: bool = True
-	validate_output: bool = False
-
+	validate_output: bool = True
+	# planner_llm: str = 'gemini-2.5-flash-lite'
+	# page_extraction_llm: str = 'gemini-2.5-flash-lite'
 
 @dataclass
 class GUIConfig:
