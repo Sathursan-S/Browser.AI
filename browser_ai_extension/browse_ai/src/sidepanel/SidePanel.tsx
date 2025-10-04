@@ -27,7 +27,7 @@ export const SidePanel = () => {
   const [taskStatus, setTaskStatus] = useState<TaskStatus>({
     is_running: false,
     current_task: null,
-    has_agent: false
+    has_agent: false,
   })
   const [serverUrl, setServerUrl] = useState('http://localhost:5000')
   const [cdpEndpoint, setCdpEndpoint] = useState('')
@@ -44,7 +44,7 @@ export const SidePanel = () => {
       transports: ['websocket'],
       reconnection: true,
       reconnectionAttempts: 5,
-      reconnectionDelay: 1000
+      reconnectionDelay: 1000,
     })
 
     newSocket.on('connect', () => {
@@ -63,16 +63,19 @@ export const SidePanel = () => {
     })
 
     newSocket.on('log_event', (event: LogEvent) => {
-      setLogs(prev => [...prev, event])
+      setLogs((prev) => [...prev, event])
     })
 
     newSocket.on('task_started', (data: { message: string }) => {
       console.log('Task started:', data.message)
     })
 
-    newSocket.on('task_action_result', (result: { success: boolean; message?: string; error?: string }) => {
-      console.log('Task action result:', result)
-    })
+    newSocket.on(
+      'task_action_result',
+      (result: { success: boolean; message?: string; error?: string }) => {
+        console.log('Task action result:', result)
+      },
+    )
 
     newSocket.on('error', (data: { message: string }) => {
       console.error('Server error:', data.message)
@@ -86,7 +89,7 @@ export const SidePanel = () => {
     }
   }, [serverUrl])
 
-  // Get CDP endpoint from current tab
+  // Get CDP endpoint from background script
   const getCdpEndpoint = async () => {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
@@ -94,20 +97,18 @@ export const SidePanel = () => {
         throw new Error('No active tab found')
       }
 
-      // Attach debugger to get CDP endpoint
-      await chrome.debugger.attach({ tabId: tab.id }, '1.3')
-      
-      // The CDP endpoint will be ws://localhost:port/devtools/page/<page_id>
-      // We need to get the debugging port and construct the endpoint
-      const endpoint = `http://localhost:9222/json/version`
-      const response = await fetch(endpoint)
-      const data = await response.json()
-      
-      // Extract WebSocket debugger URL for the tab
-      const debuggerUrl = data.webSocketDebuggerUrl || `ws://localhost:9222/devtools/page/${tab.id}`
-      
-      setCdpEndpoint(debuggerUrl)
-      return debuggerUrl
+      // Use extension proxy mode instead of direct WebSocket
+      const response = await chrome.runtime.sendMessage({
+        type: 'GET_CDP_ENDPOINT',
+        tabId: tab.id,
+      })
+
+      if (response.success) {
+        setCdpEndpoint(response.endpoint)
+        return response.endpoint
+      } else {
+        throw new Error(response.error || 'Failed to get CDP endpoint')
+      }
     } catch (error) {
       console.error('Failed to get CDP endpoint:', error)
       addSystemLog(`Failed to get CDP endpoint: ${error}`, 'ERROR')
@@ -121,9 +122,9 @@ export const SidePanel = () => {
       level,
       logger_name: 'extension',
       message,
-      event_type: 'LOG'
+      event_type: 'LOG',
     }
-    setLogs(prev => [...prev, event])
+    setLogs((prev) => [...prev, event])
   }
 
   const handleStartTask = async () => {
@@ -140,7 +141,7 @@ export const SidePanel = () => {
     let endpoint = cdpEndpoint
     if (!endpoint) {
       addSystemLog('Getting CDP endpoint from current tab...', 'INFO')
-      endpoint = await getCdpEndpoint() || ''
+      endpoint = (await getCdpEndpoint()) || ''
       if (!endpoint) {
         return
       }
@@ -148,7 +149,8 @@ export const SidePanel = () => {
 
     socket.emit('start_task', {
       task: taskInput,
-      cdp_endpoint: endpoint
+      cdp_endpoint: endpoint,
+      is_extension: true, // Indicate this is running in extension mode
     })
 
     addSystemLog(`Starting task: ${taskInput}`, 'INFO')
@@ -179,26 +181,41 @@ export const SidePanel = () => {
 
   const getEventIcon = (eventType: string) => {
     switch (eventType) {
-      case 'agent_start': return '🚀'
-      case 'agent_step': return '📍'
-      case 'agent_action': return '⚡'
-      case 'agent_result': return '✨'
-      case 'agent_complete': return '✅'
-      case 'agent_error': return '❌'
-      case 'agent_pause': return '⏸️'
-      case 'agent_resume': return '▶️'
-      case 'agent_stop': return '⏹️'
-      default: return '📝'
+      case 'agent_start':
+        return '🚀'
+      case 'agent_step':
+        return '📍'
+      case 'agent_action':
+        return '⚡'
+      case 'agent_result':
+        return '✨'
+      case 'agent_complete':
+        return '✅'
+      case 'agent_error':
+        return '❌'
+      case 'agent_pause':
+        return '⏸️'
+      case 'agent_resume':
+        return '▶️'
+      case 'agent_stop':
+        return '⏹️'
+      default:
+        return '📝'
     }
   }
 
   const getLogLevelClass = (level: string) => {
     switch (level) {
-      case 'ERROR': return 'log-error'
-      case 'WARNING': return 'log-warning'
-      case 'RESULT': return 'log-result'
-      case 'INFO': return 'log-info'
-      default: return 'log-debug'
+      case 'ERROR':
+        return 'log-error'
+      case 'WARNING':
+        return 'log-warning'
+      case 'RESULT':
+        return 'log-result'
+      case 'INFO':
+        return 'log-info'
+      default:
+        return 'log-debug'
     }
   }
 
@@ -295,9 +312,7 @@ export const SidePanel = () => {
               >
                 <div className="log-header">
                   <span className="log-icon">{getEventIcon(log.event_type)}</span>
-                  <span className="log-time">
-                    {new Date(log.timestamp).toLocaleTimeString()}
-                  </span>
+                  <span className="log-time">{new Date(log.timestamp).toLocaleTimeString()}</span>
                   <span className="log-level">{log.level}</span>
                 </div>
                 <div className="log-message">{log.message}</div>

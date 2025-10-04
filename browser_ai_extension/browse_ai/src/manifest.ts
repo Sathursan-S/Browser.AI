@@ -53,7 +53,5 @@ export default defineManifest({
   permissions: ['sidePanel', 'storage', 'debugger', 'tabs', 'activeTab'],
   // @ts-ignore
   host_permissions: ['<all_urls>'],
-  chrome_url_overrides: {
-    newtab: 'newtab.html',
-  },
+
 })
