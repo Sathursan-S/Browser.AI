@@ -1,10 +1,28 @@
 console.log('Browser.AI background service worker is running')
 
 // Track debugger attachments
-const debuggerAttachments = new Map()
+const debuggerAttachments = new Map<number, boolean>()
+
+// Define message types
+interface GetCdpEndpointMessage {
+  type: 'GET_CDP_ENDPOINT'
+  tabId: number
+}
+
+interface AttachDebuggerMessage {
+  type: 'ATTACH_DEBUGGER'
+  tabId: number
+}
+
+interface DetachDebuggerMessage {
+  type: 'DETACH_DEBUGGER'
+  tabId: number
+}
+
+type ExtensionMessage = GetCdpEndpointMessage | AttachDebuggerMessage | DetachDebuggerMessage
 
 // Handle messages from side panel
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((request: ExtensionMessage, sender, sendResponse) => {
   if (request.type === 'GET_CDP_ENDPOINT') {
     handleGetCdpEndpoint(request, sendResponse)
     return true // Will respond asynchronously
@@ -21,7 +39,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 })
 
-async function handleGetCdpEndpoint(request, sendResponse) {
+async function handleGetCdpEndpoint(request: GetCdpEndpointMessage, sendResponse: (response: any) => void) {
   try {
     const { tabId } = request
     
@@ -30,10 +48,10 @@ async function handleGetCdpEndpoint(request, sendResponse) {
     
     // Fetch debugger info from Chrome DevTools Protocol
     const response = await fetch(`http://localhost:${debugPort}/json/list`)
-    const targets = await response.json()
+    const targets = await response.json() as Array<{ type: string; webSocketDebuggerUrl?: string }>
     
     // Find the target matching our tab
-    const target = targets.find(t => t.type === 'page')
+    const target = targets.find((t) => t.type === 'page')
     
     if (target && target.webSocketDebuggerUrl) {
       sendResponse({ 
@@ -48,14 +66,15 @@ async function handleGetCdpEndpoint(request, sendResponse) {
     }
   } catch (error) {
     console.error('Failed to get CDP endpoint:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     sendResponse({ 
       success: false, 
-      error: error.message 
+      error: errorMessage 
     })
   }
 }
 
-async function handleAttachDebugger(request, sendResponse) {
+async function handleAttachDebugger(request: AttachDebuggerMessage, sendResponse: (response: any) => void) {
   try {
     const { tabId } = request
     
@@ -67,14 +86,15 @@ async function handleAttachDebugger(request, sendResponse) {
     sendResponse({ success: true })
   } catch (error) {
     console.error('Failed to attach debugger:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     sendResponse({ 
       success: false, 
-      error: error.message 
+      error: errorMessage 
     })
   }
 }
 
-async function handleDetachDebugger(request, sendResponse) {
+async function handleDetachDebugger(request: DetachDebuggerMessage, sendResponse: (response: any) => void) {
   try {
     const { tabId } = request
     
@@ -87,9 +107,10 @@ async function handleDetachDebugger(request, sendResponse) {
     sendResponse({ success: true })
   } catch (error) {
     console.error('Failed to detach debugger:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     sendResponse({ 
       success: false, 
-      error: error.message 
+      error: errorMessage 
     })
   }
 }
@@ -113,5 +134,8 @@ chrome.debugger.onDetach.addListener((source, reason) => {
 
 // Open side panel when extension icon is clicked
 chrome.action.onClicked.addListener((tab) => {
-  chrome.sidePanel.open({ windowId: tab.windowId })
+  if (tab.windowId) {
+    // @ts-ignore - sidePanel.open is available in MV3
+    chrome.sidePanel.open({ windowId: tab.windowId })
+  }
 })
