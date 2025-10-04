@@ -15,6 +15,7 @@ from flask_socketio import SocketIO, emit
 
 from .config import ConfigManager
 from .event_adapter import EventAdapter, EventType, LogEvent, LogLevel
+from .websocket_server import setup_extension_websocket, ExtensionWebSocketHandler
 
 
 class TaskManager:
@@ -186,11 +187,16 @@ class WebApp:
         # Create Flask app
         self.app = Flask(__name__)
         self.app.config['SECRET_KEY'] = 'browser-ai-gui-secret-key'
-        self.socketio = SocketIO(self.app, cors_allowed_origins="*")
+        self.socketio = SocketIO(self.app, cors_allowed_origins="*", async_mode='threading')
         
         # Setup routes
         self._setup_routes()
         self._setup_socketio_events()
+        
+        # Setup WebSocket handler for Chrome extension
+        self.extension_handler: Optional[ExtensionWebSocketHandler] = setup_extension_websocket(
+            self.app, self.socketio, self.config_manager, self.event_adapter
+        )
         
         # Start event adapter
         self.event_adapter.start()
