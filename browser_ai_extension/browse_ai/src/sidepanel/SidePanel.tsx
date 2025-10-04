@@ -2,36 +2,55 @@ import { useState, useEffect, useRef } from 'react'
 import { io, Socket } from 'socket.io-client'
 
 import './SidePanel.css'
-
-interface LogEvent {
-  timestamp: string
-  level: string
-  logger_name: string
-  message: string
-  event_type: string
-  metadata?: Record<string, any>
-}
+import { ChatInput } from './components/ChatInput'
+import { ExecutionLog, LogEvent } from './components/ExecutionLog'
+import { ControlButtons } from './components/ControlButtons'
+import { TaskStatus } from './components/TaskStatus'
 
 interface TaskStatus {
   is_running: boolean
   current_task: string | null
   has_agent: boolean
+  is_paused?: boolean
   cdp_endpoint?: string
 }
 
 export const SidePanel = () => {
   const [socket, setSocket] = useState<Socket | null>(null)
   const [connected, setConnected] = useState(false)
-  const [taskInput, setTaskInput] = useState('')
   const [logs, setLogs] = useState<LogEvent[]>([])
   const [taskStatus, setTaskStatus] = useState<TaskStatus>({
     is_running: false,
     current_task: null,
     has_agent: false,
+    is_paused: false,
   })
   const [serverUrl, setServerUrl] = useState('http://localhost:5000')
   const [cdpEndpoint, setCdpEndpoint] = useState('')
   const logsEndRef = useRef<HTMLDivElement>(null)
+
+  // Add log to list
+  const addLog = (event: LogEvent) => {
+    setLogs((prev) => [...prev, event])
+  }
+
+  // Show notification popup
+  const showNotificationPopup = async (
+    notificationType: 'user_interaction' | 'task_complete' | 'error',
+    message: string,
+    details?: string,
+  ) => {
+    try {
+      await chrome.runtime.sendMessage({
+        type: 'SHOW_NOTIFICATION',
+        notificationType,
+        message,
+        details,
+      })
+    } catch (error) {
+      console.error('Failed to show notification:', error)
+    }
+  }
 
   // Auto-scroll to bottom when new logs arrive
   useEffect(() => {
@@ -63,7 +82,26 @@ export const SidePanel = () => {
     })
 
     newSocket.on('log_event', (event: LogEvent) => {
-      setLogs((prev) => [...prev, event])
+      addLog(event)
+
+      // Show notification popup for user interaction events
+      if (
+        event.message.includes('🙋‍♂️') ||
+        event.message.toLowerCase().includes('requesting user help') ||
+        event.message.toLowerCase().includes('user intervention')
+      ) {
+        showNotificationPopup('user_interaction', event.message, event.logger_name)
+      }
+
+      // Show notification for task completion
+      if (event.message.includes('✅') || event.message.toLowerCase().includes('task completed')) {
+        showNotificationPopup('task_complete', 'Task completed successfully!', event.message)
+      }
+
+      // Show notification for errors
+      if (event.level === 'ERROR' && event.message.includes('❌')) {
+        showNotificationPopup('error', 'An error occurred', event.message)
+      }
     })
 
     newSocket.on('task_started', (data: { message: string }) => {
@@ -127,8 +165,8 @@ export const SidePanel = () => {
     setLogs((prev) => [...prev, event])
   }
 
-  const handleStartTask = async () => {
-    if (!taskInput.trim()) {
+  const handleStartTask = async (task: string) => {
+    if (!task.trim()) {
       addSystemLog('Please enter a task description', 'WARNING')
       return
     }
@@ -148,13 +186,12 @@ export const SidePanel = () => {
     }
 
     socket.emit('start_task', {
-      task: taskInput,
+      task: task,
       cdp_endpoint: endpoint,
       is_extension: true, // Indicate this is running in extension mode
     })
 
-    addSystemLog(`Starting task: ${taskInput}`, 'INFO')
-    setTaskInput('')
+    addSystemLog(`Starting task: ${task}`, 'INFO')
   }
 
   const handleStopTask = () => {
@@ -179,154 +216,75 @@ export const SidePanel = () => {
     setLogs([])
   }
 
-  const getEventIcon = (eventType: string) => {
-    switch (eventType) {
-      case 'agent_start':
-        return '🚀'
-      case 'agent_step':
-        return '📍'
-      case 'agent_action':
-        return '⚡'
-      case 'agent_result':
-        return '✨'
-      case 'agent_complete':
-        return '✅'
-      case 'agent_error':
-        return '❌'
-      case 'agent_pause':
-        return '⏸️'
-      case 'agent_resume':
-        return '▶️'
-      case 'agent_stop':
-        return '⏹️'
-      default:
-        return '📝'
-    }
-  }
-
-  const getLogLevelClass = (level: string) => {
-    switch (level) {
-      case 'ERROR':
-        return 'log-error'
-      case 'WARNING':
-        return 'log-warning'
-      case 'RESULT':
-        return 'log-result'
-      case 'INFO':
-        return 'log-info'
-      default:
-        return 'log-debug'
-    }
-  }
-
   return (
     <div className="sidepanel-container">
+      {/* Header */}
       <header className="sidepanel-header">
-        <h1>🤖 Browser.AI</h1>
-        <div className="connection-status">
-          <span className={`status-indicator ${connected ? 'connected' : 'disconnected'}`}></span>
-          <span>{connected ? 'Connected' : 'Disconnected'}</span>
+        <div className="header-content">
+          <div className="header-logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="#667eea" />
+              <path
+                d="M2 17L12 22L22 17M2 12L12 17L22 12"
+                stroke="#667eea"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <h1>Browser.AI</h1>
+          </div>
+          <div className="connection-status">
+            <span className={`status-dot ${connected ? 'connected' : 'disconnected'}`}></span>
+            <span className="status-text">{connected ? 'Connected' : 'Disconnected'}</span>
+          </div>
         </div>
       </header>
 
-      {/* Server Configuration */}
-      <div className="config-section">
-        <input
-          type="text"
-          className="server-url-input"
-          value={serverUrl}
-          onChange={(e) => setServerUrl(e.target.value)}
-          placeholder="Server URL"
-          disabled={connected}
+      {/* Main Content */}
+      <div className="sidepanel-content">
+        {/* Server Configuration */}
+        <div className="config-section">
+          <div className="config-label">Server URL</div>
+          <input
+            type="text"
+            className="server-url-input"
+            value={serverUrl}
+            onChange={(e) => setServerUrl(e.target.value)}
+            placeholder="http://localhost:5000"
+            disabled={connected}
+          />
+        </div>
+
+        {/* Task Status Banner */}
+        <TaskStatus
+          isRunning={taskStatus.is_running}
+          currentTask={taskStatus.current_task}
+          isPaused={taskStatus.is_paused}
         />
+
+        {/* Control Buttons */}
+        <ControlButtons
+          isRunning={taskStatus.is_running}
+          isPaused={taskStatus.is_paused || false}
+          connected={connected}
+          onPause={handlePauseTask}
+          onResume={handleResumeTask}
+          onStop={handleStopTask}
+        />
+
+        {/* Execution Logs */}
+        <ExecutionLog logs={logs} onClear={clearLogs} />
       </div>
 
-      {/* Task Status */}
-      {taskStatus.is_running && (
-        <div className="task-status">
-          <div className="task-status-header">
-            <span className="status-icon">⚙️</span>
-            <span className="status-text">Running Task</span>
-          </div>
-          <div className="task-description">{taskStatus.current_task}</div>
-        </div>
-      )}
-
-      {/* Chat Input */}
-      <div className="chat-section">
-        <textarea
-          className="task-input"
-          value={taskInput}
-          onChange={(e) => setTaskInput(e.target.value)}
-          placeholder="Describe what you'd like me to do... (e.g., 'Search for Python tutorials and summarize the top 5 results')"
-          rows={3}
+      {/* Chat Input at Bottom */}
+      <div className="sidepanel-footer">
+        <ChatInput
+          onSendMessage={handleStartTask}
           disabled={taskStatus.is_running}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && e.ctrlKey) {
-              handleStartTask()
-            }
-          }}
+          placeholder="What would you like me to automate? (e.g., 'Search for Python tutorials')"
         />
-        <div className="chat-controls">
-          {!taskStatus.is_running ? (
-            <button
-              className="btn btn-primary"
-              onClick={handleStartTask}
-              disabled={!connected || !taskInput.trim()}
-            >
-              Start Task
-            </button>
-          ) : (
-            <>
-              <button className="btn btn-warning" onClick={handlePauseTask}>
-                Pause
-              </button>
-              <button className="btn btn-danger" onClick={handleStopTask}>
-                Stop
-              </button>
-            </>
-          )}
-        </div>
       </div>
-
-      {/* Logs Section */}
-      <div className="logs-section">
-        <div className="logs-header">
-          <h3>Live Logs</h3>
-          <button className="btn btn-small" onClick={clearLogs}>
-            Clear
-          </button>
-        </div>
-        <div className="logs-container">
-          {logs.length === 0 ? (
-            <div className="logs-empty">
-              <p>No logs yet. Start a task to see live updates.</p>
-            </div>
-          ) : (
-            logs.map((log, index) => (
-              <div
-                key={index}
-                className={`log-entry ${getLogLevelClass(log.level)} ${
-                  log.event_type === 'agent_step' ? 'log-step' : ''
-                }`}
-              >
-                <div className="log-header">
-                  <span className="log-icon">{getEventIcon(log.event_type)}</span>
-                  <span className="log-time">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                  <span className="log-level">{log.level}</span>
-                </div>
-                <div className="log-message">{log.message}</div>
-              </div>
-            ))
-          )}
-          <div ref={logsEndRef} />
-        </div>
-      </div>
-
-      {/* Footer */}
-      <footer className="sidepanel-footer">
-        <small>Browser automation powered by Browser.AI</small>
-      </footer>
     </div>
   )
 }

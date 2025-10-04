@@ -27,11 +27,20 @@ interface SendCdpCommandMessage {
   commandId: string
 }
 
+interface ShowNotificationMessage {
+  type: 'SHOW_NOTIFICATION'
+  notificationType: 'user_interaction' | 'task_complete' | 'error'
+  message: string
+  details?: string
+  result?: any
+}
+
 type ExtensionMessage =
   | GetCdpEndpointMessage
   | AttachDebuggerMessage
   | DetachDebuggerMessage
   | SendCdpCommandMessage
+  | ShowNotificationMessage
 
 // Handle messages from side panel
 chrome.runtime.onMessage.addListener((request: ExtensionMessage, sender, sendResponse) => {
@@ -52,6 +61,11 @@ chrome.runtime.onMessage.addListener((request: ExtensionMessage, sender, sendRes
 
   if (request.type === 'SEND_CDP_COMMAND') {
     handleSendCdpCommand(request, sendResponse)
+    return true // Will respond asynchronously
+  }
+
+  if (request.type === 'SHOW_NOTIFICATION') {
+    handleShowNotification(request, sendResponse)
     return true // Will respond asynchronously
   }
 })
@@ -174,3 +188,46 @@ chrome.action.onClicked.addListener((tab) => {
     chrome.sidePanel.open({ windowId: tab.windowId })
   }
 })
+
+async function handleShowNotification(
+  request: ShowNotificationMessage,
+  sendResponse: (response: any) => void,
+) {
+  try {
+    const { notificationType, message, details, result } = request
+    const timestamp = new Date().toISOString()
+
+    // Create notification window
+    const width = 500
+    const height = 400
+    const left = Math.round((screen.width - width) / 2)
+    const top = Math.round((screen.height - height) / 2)
+
+    const params = new URLSearchParams({
+      type: notificationType,
+      message,
+      details: details || '',
+      result: result ? encodeURIComponent(JSON.stringify(result)) : '',
+      timestamp,
+    })
+
+    await chrome.windows.create({
+      url: `notification.html?${params.toString()}`,
+      type: 'popup',
+      width,
+      height,
+      left,
+      top,
+      focused: true,
+    })
+
+    sendResponse({ success: true })
+  } catch (error) {
+    console.error('Failed to show notification:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    sendResponse({
+      success: false,
+      error: errorMessage,
+    })
+  }
+}
