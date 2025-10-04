@@ -14,9 +14,8 @@ from dotenv import load_dotenv
 from pydantic import SecretStr
 
 load_dotenv()
-api_key = os.getenv('GEMINI_API_KEY')
-if not api_key:
-	raise ValueError('GEMINI_API_KEY is not set')
+# Get API key from environment, but don't require it
+api_key = os.getenv('GEMINI_API_KEY', '')
 
 
 @dataclass
@@ -25,7 +24,7 @@ class LLMConfig:
 
 	provider: str = 'google'  # openai, anthropic, ollama, google, etc.
 	model: str = 'gemini-2.5-flash-lite'
-	api_key: str = SecretStr(api_key)
+	api_key: str = SecretStr(api_key) if api_key else SecretStr('')
 	base_url: Optional[str] = None  # For custom endpoints
 	temperature: float = 0.1
 	max_tokens: Optional[int] = None
