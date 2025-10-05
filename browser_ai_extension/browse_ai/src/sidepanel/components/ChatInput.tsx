@@ -30,6 +30,7 @@ export const ChatInput = ({ onSendMessage, disabled = false, placeholder }: Chat
       <div className="chat-input-wrapper">
         <textarea
           className="chat-input-field"
+          aria-label={placeholder || 'What would you like me to do?'}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}

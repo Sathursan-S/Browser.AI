@@ -20,7 +20,6 @@ export default defineManifest({
     128: 'img/logo-128.png',
   },
   action: {
-    name: 'Browser AI',
     // @ts-ignore
     default_title: 'Click to open Browser.AI Side Panel',
     // @ts-ignore
@@ -55,3 +54,4 @@ export default defineManifest({
   // @ts-ignore
   host_permissions: ['<all_urls>'],
 })
+

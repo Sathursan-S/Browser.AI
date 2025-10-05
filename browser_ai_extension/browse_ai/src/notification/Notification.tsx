@@ -24,23 +24,37 @@ function Notification() {
     const timestamp = params.get('timestamp') || new Date().toISOString()
 
     if (type && message) {
+      let parsedResult = null
+      if (result) {
+        try {
+          parsedResult = JSON.parse(decodeURIComponent(result))
+        } catch (e) {
+          console.error('Failed to parse result from URL:', e)
+        }
+      }
       setNotification({
         type,
         message,
         details,
-        result: result ? JSON.parse(decodeURIComponent(result)) : null,
+        result: parsedResult,
         timestamp,
       })
       setShow(true)
     }
 
     // Listen for messages from background script
-    chrome.runtime.onMessage.addListener((request) => {
+    const messageListener = (request: any) => {
       if (request.type === 'SHOW_NOTIFICATION') {
         setNotification(request.data)
         setShow(true)
       }
-    })
+    }
+
+    chrome.runtime.onMessage.addListener(messageListener)
+
+    return () => {
+      chrome.runtime.onMessage.removeListener(messageListener)
+    }
   }, [])
 
   const handleClose = () => {
@@ -49,11 +63,18 @@ function Notification() {
   }
 
   const handleOpenSidePanel = async () => {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-    if (tab.windowId) {
-      // @ts-ignore
-      await chrome.sidePanel.open({ windowId: tab.windowId })
-      handleClose()
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+      if (tab?.windowId) {
+        if ('sidePanel' in chrome) {
+          await (chrome as any).sidePanel.open({ windowId: tab.windowId })
+          handleClose()
+        } else {
+          console.error('Side panel API not available')
+        }
+      }
+    } catch (error) {
+      console.error('Failed to open side panel:', error)
     }
   }
 

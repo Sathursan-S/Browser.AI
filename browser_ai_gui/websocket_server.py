@@ -6,34 +6,23 @@ and control the browser via CDP.
 """
 
 import asyncio
-import json
 import logging
-from typing import Any, Dict, Optional, Set
-from dataclasses import dataclass, asdict
+from typing import Optional, Set
 
 from flask import Flask
-from flask_socketio import SocketIO, emit, disconnect
+from flask_socketio import SocketIO, emit
 
 from .config import ConfigManager
 from .event_adapter import EventAdapter, EventType, LogEvent, LogLevel
+from .protocol import (
+    ActionResult,
+    StartTaskPayload,
+    TaskStatus,
+    create_action_result,
+    create_task_status,
+)
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class ExtensionMessage:
-    """Message from Chrome extension"""
-
-    type: str
-    data: Optional[Dict[str, Any]] = None
-
-
-@dataclass
-class ServerMessage:
-    """Message to Chrome extension"""
-
-    type: str
-    data: Optional[Dict[str, Any]] = None
 
 
 class ExtensionTaskManager:
@@ -51,10 +40,10 @@ class ExtensionTaskManager:
 
     async def start_task_with_cdp(
         self, task_description: str, cdp_endpoint: str
-    ) -> Dict[str, Any]:
+    ) -> ActionResult:
         """Start a new Browser.AI task using CDP connection to existing browser"""
         if self.is_running:
-            return {"success": False, "error": "Task already running"}
+            return create_action_result(False, error="Task already running")
 
         try:
             # Import Browser.AI components
@@ -94,17 +83,17 @@ class ExtensionTaskManager:
                 {"task": task_description, "cdp_endpoint": cdp_endpoint},
             )
 
-            return {"success": True, "message": "Task started successfully"}
+            return create_action_result(True, message="Task started successfully")
 
         except Exception as e:
             logger.error(f"Failed to start task with CDP: {str(e)}", exc_info=True)
             self.is_running = False
-            return {"success": False, "error": str(e)}
+            return create_action_result(False, error=str(e))
 
-    async def start_task(self, task_description: str) -> Dict[str, Any]:
+    async def start_task(self, task_description: str) -> ActionResult:
         """Start a new Browser.AI task with a new browser instance (for extension mode)"""
         if self.is_running:
-            return {"success": False, "error": "Task already running"}
+            return create_action_result(False, error="Task already running")
 
         try:
             # Import Browser.AI components
@@ -146,12 +135,12 @@ class ExtensionTaskManager:
                 {"task": task_description, "mode": "extension"},
             )
 
-            return {"success": True, "message": "Task started successfully"}
+            return create_action_result(True, message="Task started successfully")
 
         except Exception as e:
             logger.error(f"Failed to start task: {str(e)}", exc_info=True)
             self.is_running = False
-            return {"success": False, "error": str(e)}
+            return create_action_result(False, error=str(e))
 
     async def run_task(self):
         """Run the current agent task"""
@@ -165,7 +154,7 @@ class ExtensionTaskManager:
 
             self.event_adapter.emit_custom_event(
                 EventType.AGENT_COMPLETE,
-                f"Task completed successfully",
+                "Task completed successfully",
                 LogLevel.INFO,
                 {"result": str(result)},
             )
@@ -187,56 +176,56 @@ class ExtensionTaskManager:
             self.browser = None
             self.cdp_endpoint = None
 
-    def stop_task(self) -> Dict[str, Any]:
+    def stop_task(self) -> ActionResult:
         """Stop the current task"""
         if not self.is_running or not self.current_agent:
-            return {"success": False, "error": "No task running"}
+            return create_action_result(False, error="No task running")
 
         try:
             self.current_agent.stop()
             self.event_adapter.emit_custom_event(
                 EventType.AGENT_STOP, "Task stopped by user", LogLevel.INFO
             )
-            return {"success": True, "message": "Task stopped successfully"}
+            return create_action_result(True, message="Task stopped successfully")
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return create_action_result(False, error=str(e))
 
-    def pause_task(self) -> Dict[str, Any]:
+    def pause_task(self) -> ActionResult:
         """Pause the current task"""
         if not self.is_running or not self.current_agent:
-            return {"success": False, "error": "No task running"}
+            return create_action_result(False, error="No task running")
 
         try:
             self.current_agent.pause()
             self.event_adapter.emit_custom_event(
                 EventType.AGENT_PAUSE, "Task paused by user", LogLevel.INFO
             )
-            return {"success": True, "message": "Task paused successfully"}
+            return create_action_result(True, message="Task paused successfully")
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return create_action_result(False, error=str(e))
 
-    def resume_task(self) -> Dict[str, Any]:
+    def resume_task(self) -> ActionResult:
         """Resume the current task"""
         if not self.is_running or not self.current_agent:
-            return {"success": False, "error": "No task to resume"}
+            return create_action_result(False, error="No task to resume")
 
         try:
             self.current_agent.resume()
             self.event_adapter.emit_custom_event(
                 EventType.AGENT_RESUME, "Task resumed by user", LogLevel.INFO
             )
-            return {"success": True, "message": "Task resumed successfully"}
+            return create_action_result(True, message="Task resumed successfully")
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return create_action_result(False, error=str(e))
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> TaskStatus:
         """Get current task status"""
-        return {
-            "is_running": self.is_running,
-            "current_task": self.current_task,
-            "has_agent": self.current_agent is not None,
-            "cdp_endpoint": self.cdp_endpoint,
-        }
+        return create_task_status(
+            is_running=self.is_running,
+            current_task=self.current_task,
+            has_agent=self.current_agent is not None,
+            cdp_endpoint=self.cdp_endpoint,
+        )
 
 
 class ExtensionWebSocketHandler:
@@ -270,7 +259,8 @@ class ExtensionWebSocketHandler:
             logger.info(f"Extension client connected: {client_id}")
 
             # Send current status
-            emit("status", self.task_manager.get_status())
+            status = self.task_manager.get_status()
+            emit("status", status.to_dict())
 
             # Send recent events
             recent_events = self.event_adapter.get_recent_events(50)
@@ -290,25 +280,21 @@ class ExtensionWebSocketHandler:
         @self.socketio.on("start_task", namespace="/extension")
         def handle_start_task(data):
             """Handle task start request from extension"""
-            task = data.get("task")
-            cdp_endpoint = data.get("cdp_endpoint")
-            is_extension = data.get("is_extension", False)
+            payload = StartTaskPayload.from_dict(data)
 
-            if not task:
+            if not payload.task:
                 emit("error", {"message": "Task description is required"})
                 return
 
             # For extension mode, we can't use CDP, so use regular browser mode
-            if is_extension or not cdp_endpoint or cdp_endpoint == "extension-proxy":
+            if payload.is_extension or not payload.cdp_endpoint or payload.cdp_endpoint == "extension-proxy":
                 # Start task without CDP connection
                 def run_task():
                     asyncio.run(start_and_run())
 
                 async def start_and_run():
-                    result = await self.task_manager.start_task(
-                        task
-                    )  # Use regular start_task instead of start_task_with_cdp
-                    if result["success"]:
+                    result = await self.task_manager.start_task(payload.task)
+                    if result.success:
                         await self.task_manager.run_task()
 
                 import threading
@@ -321,7 +307,7 @@ class ExtensionWebSocketHandler:
                 )
                 return
 
-            if not cdp_endpoint:
+            if not payload.cdp_endpoint:
                 emit("error", {"message": "CDP endpoint is required"})
                 return
 
@@ -330,8 +316,8 @@ class ExtensionWebSocketHandler:
                 asyncio.run(start_and_run())
 
             async def start_and_run():
-                result = await self.task_manager.start_task_with_cdp(task, cdp_endpoint)
-                if result["success"]:
+                result = await self.task_manager.start_task_with_cdp(payload.task, payload.cdp_endpoint)
+                if result.success:
                     await self.task_manager.run_task()
 
             import threading
@@ -346,40 +332,30 @@ class ExtensionWebSocketHandler:
         def handle_stop_task():
             """Handle task stop request from extension"""
             result = self.task_manager.stop_task()
-            emit("task_action_result", result)
+            emit("task_action_result", result.to_dict())
 
         @self.socketio.on("pause_task", namespace="/extension")
         def handle_pause_task():
             """Handle task pause request from extension"""
             result = self.task_manager.pause_task()
-            emit("task_action_result", result)
+            emit("task_action_result", result.to_dict())
 
         @self.socketio.on("resume_task", namespace="/extension")
         def handle_resume_task():
             """Handle task resume request from extension"""
             result = self.task_manager.resume_task()
-            emit("task_action_result", result)
+            emit("task_action_result", result.to_dict())
 
         @self.socketio.on("get_status", namespace="/extension")
         def handle_get_status():
             """Handle status request from extension"""
-            emit("status", self.task_manager.get_status())
-
-    def _serialize_log_event(self, event: LogEvent) -> Dict[str, Any]:
-        """Serialize log event for JSON transmission"""
-        return {
-            "timestamp": event.timestamp.isoformat(),
-            "level": event.level.value,
-            "logger_name": event.logger_name,
-            "message": event.message,
-            "event_type": event.event_type.value,
-            "metadata": event.metadata or {},
-        }
+            status = self.task_manager.get_status()
+            emit("status", status.to_dict())
 
     def broadcast_event(self, event: LogEvent):
         """Broadcast event to all connected extension clients"""
         self.socketio.emit(
-            "log_event", self._serialize_log_event(event), namespace="/extension"
+            "log_event", event.to_dict(), namespace="/extension"
         )
 
 
