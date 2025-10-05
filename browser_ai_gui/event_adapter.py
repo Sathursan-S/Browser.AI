@@ -7,49 +7,11 @@ from the Browser.AI library without modifying its existing implementation.
 
 import logging
 import threading
-from dataclasses import dataclass
 from datetime import datetime
-from enum import Enum
 from queue import Empty, Queue
 from typing import Any, Callable, Dict, List, Optional
 
-
-class LogLevel(Enum):
-	"""Log levels for events"""
-
-	DEBUG = 'DEBUG'
-	INFO = 'INFO'
-	WARNING = 'WARNING'
-	ERROR = 'ERROR'
-	RESULT = 'RESULT'
-
-
-class EventType(Enum):
-    """Types of events that can be captured"""
-    LOG = "log"
-    AGENT_START = "agent_start"
-    AGENT_STEP = "agent_step"
-    AGENT_ACTION = "agent_action"
-    AGENT_RESULT = "agent_result"
-    AGENT_COMPLETE = "agent_complete"
-    AGENT_ERROR = "agent_error"
-    AGENT_PAUSE = "agent_pause"
-    AGENT_RESUME = "agent_resume"
-    AGENT_STOP = "agent_stop"
-    USER_HELP_NEEDED = "user_help_needed"
-
-
-@dataclass
-class LogEvent:
-	"""Represents a log event"""
-
-	timestamp: datetime
-	level: LogLevel
-	logger_name: str
-	message: str
-	event_type: EventType = EventType.LOG
-	metadata: Optional[Dict[str, Any]] = None
-
+from .protocol import EventType, LogEvent, LogLevel
 
 class LogCapture(logging.Handler):
     """Custom logging handler to capture Browser.AI logs"""
@@ -75,13 +37,13 @@ class LogCapture(logging.Handler):
             
             level = level_mapping.get(record.levelno, LogLevel.INFO)
             
-            # Create log event
+            # Create log event with protocol-compatible string types
             event = LogEvent(
-                timestamp=datetime.fromtimestamp(record.created),
-                level=level,
+                timestamp=datetime.fromtimestamp(record.created).isoformat(),
+                level=level.value,
                 logger_name=record.name,
                 message=self.format(record),
-                event_type=event_type,
+                event_type=event_type.value,
                 metadata={
                     'module': record.module,
                     'function': record.funcName,
@@ -92,7 +54,7 @@ class LogCapture(logging.Handler):
             # Add to queue (non-blocking)
             try:
                 self.event_queue.put_nowait(event)
-            except:
+            except Exception:
                 pass  # Queue full, skip this event
                 
         except Exception:
@@ -219,11 +181,11 @@ class EventAdapter:
 	) -> None:
 		"""Emit a custom event (useful for GUI state changes)"""
 		event = LogEvent(
-			timestamp=datetime.now(),
-			level=level,
+			timestamp=datetime.now().isoformat(),
+			level=level.value,
 			logger_name='browser_ai_gui',
 			message=message,
-			event_type=event_type,
+			event_type=event_type.value,
 			metadata=metadata or {},
 		)
 

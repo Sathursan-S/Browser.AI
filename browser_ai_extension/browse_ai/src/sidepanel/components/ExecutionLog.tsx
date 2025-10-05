@@ -70,6 +70,9 @@ export const ExecutionLog = ({ logs, onClear }: ExecutionLogProps) => {
 
   const formatTime = (timestamp: string): string => {
     const date = new Date(timestamp)
+    if (isNaN(date.getTime())) {
+      return 'Invalid time'
+    }
     return date.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
@@ -146,7 +149,7 @@ export const ExecutionLog = ({ logs, onClear }: ExecutionLogProps) => {
           <div className="log-entries">
             {logs.map((log, index) => (
               <div
-                key={index}
+                key={`${log.timestamp}-${index}`}
                 className={`log-entry ${getLogLevelClass(log.level)} ${
                   isStepLog(log.event_type) ? 'log-step-entry' : ''
                 } log-entry-animate log-entry-${Math.min(index, 5)}`}
@@ -162,7 +165,15 @@ export const ExecutionLog = ({ logs, onClear }: ExecutionLogProps) => {
                     {Object.entries(log.metadata).map(([key, value]) => (
                       <div key={key} className="metadata-item">
                         <span className="metadata-key">{key}:</span>
-                        <span className="metadata-value">{JSON.stringify(value)}</span>
+                        <span className="metadata-value">
+                          {(() => {
+                            try {
+                              return JSON.stringify(value)
+                            } catch {
+                              return '[Unstringifiable value]'
+                            }
+                          })()}
+                        </span>
                       </div>
                     ))}
                   </div>

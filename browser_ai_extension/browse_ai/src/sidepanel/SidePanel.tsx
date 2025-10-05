@@ -6,32 +6,37 @@ import { ChatInput } from './components/ChatInput'
 import { ExecutionLog, LogEvent } from './components/ExecutionLog'
 import { ControlButtons } from './components/ControlButtons'
 import { TaskStatus } from './components/TaskStatus'
-
-interface TaskStatus {
-  is_running: boolean
-  current_task: string | null
-  has_agent: boolean
-  is_paused?: boolean
-  cdp_endpoint?: string
-}
+import {
+  TaskStatus as ProtocolTaskStatus,
+  StartTaskPayload,
+  ActionResult,
+  DEFAULT_SERVER_URL,
+  MAX_RECONNECTION_ATTEMPTS,
+  RECONNECTION_DELAY_MS,
+  MAX_LOGS,
+  WEBSOCKET_NAMESPACE,
+} from '../types/protocol'
 
 export const SidePanel = () => {
   const [socket, setSocket] = useState<Socket | null>(null)
   const [connected, setConnected] = useState(false)
   const [logs, setLogs] = useState<LogEvent[]>([])
-  const [taskStatus, setTaskStatus] = useState<TaskStatus>({
+  const [taskStatus, setTaskStatus] = useState<ProtocolTaskStatus>({
     is_running: false,
     current_task: null,
     has_agent: false,
     is_paused: false,
   })
-  const [serverUrl, setServerUrl] = useState('http://localhost:5000')
+  const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER_URL)
   const [cdpEndpoint, setCdpEndpoint] = useState('')
   const logsEndRef = useRef<HTMLDivElement>(null)
 
-  // Add log to list
+  // Add log to list with bounded size
   const addLog = (event: LogEvent) => {
-    setLogs((prev) => [...prev, event])
+    setLogs((prev) => {
+      const updated = [...prev, event]
+      return updated.length > MAX_LOGS ? updated.slice(-MAX_LOGS) : updated
+    })
   }
 
   // Show notification popup
@@ -59,11 +64,11 @@ export const SidePanel = () => {
 
   // Initialize socket connection
   useEffect(() => {
-    const newSocket = io(`${serverUrl}/extension`, {
+    const newSocket = io(`${serverUrl}${WEBSOCKET_NAMESPACE}`, {
       transports: ['websocket'],
       reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
+      reconnectionAttempts: MAX_RECONNECTION_ATTEMPTS,
+      reconnectionDelay: RECONNECTION_DELAY_MS,
     })
 
     newSocket.on('connect', () => {
@@ -77,8 +82,9 @@ export const SidePanel = () => {
       console.log('Disconnected from Browser.AI server')
     })
 
-    newSocket.on('status', (status: TaskStatus) => {
+    newSocket.on('status', (status: ProtocolTaskStatus) => {
       setTaskStatus(status)
+      console.log('Received status update:', status)
     })
 
     newSocket.on('log_event', (event: LogEvent) => {
@@ -162,7 +168,10 @@ export const SidePanel = () => {
       message,
       event_type: 'LOG',
     }
-    setLogs((prev) => [...prev, event])
+    setLogs((prev) => {
+      const updated = [...prev, event]
+      return updated.length > MAX_LOGS ? updated.slice(-MAX_LOGS) : updated
+    })
   }
 
   const handleStartTask = async (task: string) => {
@@ -185,11 +194,13 @@ export const SidePanel = () => {
       }
     }
 
-    socket.emit('start_task', {
+    const payload: StartTaskPayload = {
       task: task,
       cdp_endpoint: endpoint,
       is_extension: true, // Indicate this is running in extension mode
-    })
+    }
+
+    socket.emit('start_task', payload)
 
     addSystemLog(`Starting task: ${task}`, 'INFO')
   }
