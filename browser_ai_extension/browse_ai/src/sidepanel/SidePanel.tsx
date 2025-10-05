@@ -9,7 +9,6 @@ import { TaskStatus } from './components/TaskStatus'
 import {
   TaskStatus as ProtocolTaskStatus,
   StartTaskPayload,
-  ActionResult,
   DEFAULT_SERVER_URL,
   MAX_RECONNECTION_ATTEMPTS,
   RECONNECTION_DELAY_MS,
@@ -112,12 +111,23 @@ export const SidePanel = () => {
 
     newSocket.on('task_started', (data: { message: string }) => {
       console.log('Task started:', data.message)
+      addSystemLog(data.message, 'INFO')
+      newSocket.emit('get_status')
     })
 
     newSocket.on(
       'task_action_result',
       (result: { success: boolean; message?: string; error?: string }) => {
         console.log('Task action result:', result)
+
+        if (result.success) {
+          newSocket.emit('get_status')
+          if (result.message) {
+            addSystemLog(result.message, 'INFO')
+          }
+        } else if (result.error) {
+          addSystemLog(result.error, 'ERROR')
+        }
       },
     )
 
@@ -202,24 +212,45 @@ export const SidePanel = () => {
 
     socket.emit('start_task', payload)
 
+    setTaskStatus((prev) => ({
+      ...prev,
+      is_running: true,
+      is_paused: false,
+      current_task: task,
+    }))
+
     addSystemLog(`Starting task: ${task}`, 'INFO')
   }
 
   const handleStopTask = () => {
     if (!connected || !socket) return
     socket.emit('stop_task')
+    setTaskStatus((prev) => ({
+      ...prev,
+      is_running: false,
+      is_paused: false,
+      current_task: null,
+    }))
     addSystemLog('Stopping task...', 'INFO')
   }
 
   const handlePauseTask = () => {
     if (!connected || !socket) return
     socket.emit('pause_task')
+    setTaskStatus((prev) => ({
+      ...prev,
+      is_paused: true,
+    }))
     addSystemLog('Pausing task...', 'INFO')
   }
 
   const handleResumeTask = () => {
     if (!connected || !socket) return
     socket.emit('resume_task')
+    setTaskStatus((prev) => ({
+      ...prev,
+      is_paused: false,
+    }))
     addSystemLog('Resuming task...', 'INFO')
   }
 

@@ -265,7 +265,7 @@ class ExtensionWebSocketHandler:
             # Send recent events
             recent_events = self.event_adapter.get_recent_events(50)
             for event in recent_events:
-                emit("log_event", self._serialize_log_event(event))
+                emit("log_event", event.to_dict())
 
         @self.socketio.on("disconnect", namespace="/extension")
         def handle_extension_disconnect():
@@ -287,7 +287,11 @@ class ExtensionWebSocketHandler:
                 return
 
             # For extension mode, we can't use CDP, so use regular browser mode
-            if payload.is_extension or not payload.cdp_endpoint or payload.cdp_endpoint == "extension-proxy":
+            if (
+                payload.is_extension
+                or not payload.cdp_endpoint
+                or payload.cdp_endpoint == "extension-proxy"
+            ):
                 # Start task without CDP connection
                 def run_task():
                     asyncio.run(start_and_run())
@@ -316,7 +320,9 @@ class ExtensionWebSocketHandler:
                 asyncio.run(start_and_run())
 
             async def start_and_run():
-                result = await self.task_manager.start_task_with_cdp(payload.task, payload.cdp_endpoint)
+                result = await self.task_manager.start_task_with_cdp(
+                    payload.task, payload.cdp_endpoint
+                )
                 if result.success:
                     await self.task_manager.run_task()
 
@@ -354,9 +360,7 @@ class ExtensionWebSocketHandler:
 
     def broadcast_event(self, event: LogEvent):
         """Broadcast event to all connected extension clients"""
-        self.socketio.emit(
-            "log_event", event.to_dict(), namespace="/extension"
-        )
+        self.socketio.emit("log_event", event.to_dict(), namespace="/extension")
 
 
 def setup_extension_websocket(
