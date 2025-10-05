@@ -90,6 +90,14 @@ class ExtensionTaskManager:
         except Exception as e:
             logger.error(f"Failed to start task with CDP: {str(e)}", exc_info=True)
             self.is_running = False
+
+            # Emit custom event to indicate failure
+            self.event_adapter.emit_custom_event(
+                EventType.AGENT_ERROR,
+                f"Failed to start task: {str(e)}",
+                LogLevel.ERROR,
+                {"error": str(e)},
+            )
             return create_action_result(False, error=str(e))
 
     async def start_task(self, task_description: str) -> ActionResult:
@@ -143,6 +151,14 @@ class ExtensionTaskManager:
         except Exception as e:
             logger.error(f"Failed to start task: {str(e)}", exc_info=True)
             self.is_running = False
+            # Emit custom event to indicate failure
+            self.event_adapter.emit_custom_event(
+                EventType.AGENT_ERROR,
+                f"Failed to start task: {str(e)}",
+                LogLevel.ERROR,
+                {"error": str(e)},
+            )
+            
             return create_action_result(False, error=str(e))
 
     async def run_task(self):
@@ -173,6 +189,9 @@ class ExtensionTaskManager:
         finally:
             self.is_running = False
             self.is_paused = False  # Reset pause state when task finishes
+            self.event_adapter.emit_custom_event(
+                EventType.AGENT_STOP, "Task stopped", LogLevel.INFO
+            )
             if self.browser:
                 await self.browser.close()
             self.current_agent = None
