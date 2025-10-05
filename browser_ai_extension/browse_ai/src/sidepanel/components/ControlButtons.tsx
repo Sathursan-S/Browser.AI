@@ -19,6 +19,7 @@ export const ControlButtons = ({
   onResume,
   onStop,
 }: ControlButtonsProps) => {
+  // Only show control buttons when a task is actually running
   if (!isRunning) {
     return null
   }
