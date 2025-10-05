@@ -16,6 +16,7 @@ import {
   RECONNECTION_DELAY_MS,
 } from '../types/protocol'
 import { loadSettings, onSettingsChanged, formatTimestamp, openOptionsPage } from '../utils/helpers'
+import { loadTaskStatus, saveTaskStatus, loadCdpEndpoint, saveCdpEndpoint, onTaskStatusChanged } from '../utils/state'
 
 export const SidePanel = () => {
   const [socket, setSocket] = useState<Socket | null>(null)
@@ -32,11 +33,40 @@ export const SidePanel = () => {
   const logsEndRef = useRef<HTMLDivElement>(null)
   const socketRef = useRef<Socket | null>(null)
 
-  // Load settings on mount
+  // Load settings and persisted task status on mount
   useEffect(() => {
     loadSettings().then(setSettings)
     onSettingsChanged(setSettings)
+    
+    // Load persisted task status from chrome storage using state manager
+    loadTaskStatus().then((status) => {
+      if (status) {
+        setTaskStatus(status)
+      }
+    })
+    
+    // Load persisted CDP endpoint
+    loadCdpEndpoint().then((endpoint) => {
+      if (endpoint) {
+        setCdpEndpoint(endpoint)
+      }
+    })
+    
+    // Listen for task status changes from other extension pages
+    onTaskStatusChanged(setTaskStatus)
   }, [])
+
+  // Persist task status to chrome storage whenever it changes
+  useEffect(() => {
+    saveTaskStatus(taskStatus)
+  }, [taskStatus])
+
+  // Persist CDP endpoint when it changes
+  useEffect(() => {
+    if (cdpEndpoint) {
+      saveCdpEndpoint(cdpEndpoint)
+    }
+  }, [cdpEndpoint])
 
   // Add log to list with bounded size
   const addLog = (event: LogEvent) => {
@@ -89,6 +119,8 @@ export const SidePanel = () => {
       setConnected(true)
       console.log('Connected to Browser.AI server')
       newSocket.emit('extension_connect')
+      // Request current status from server on connect to ensure UI is synchronized
+      newSocket.emit('get_status')
     })
 
     newSocket.on('disconnect', () => {
