@@ -545,7 +545,7 @@ class Controller:
 
 		# User Assistance Actions
 		@self.registry.action(
-			'IMMEDIATELY request help from user when encountering ANY CAPTCHAs, reCAPTCHA challenges, "I\'m not a robot" checkboxes, image selection challenges, or verification prompts. DO NOT attempt to solve them automatically. This is the PREFERRED approach for all human verification systems.',
+			'Request help from user for situations requiring human intervention: CAPTCHAs/verifications, login/signup forms, payment processing, sensitive data entry, or any complex authentication. Use this instead of attempting these tasks automatically to respect user privacy and security.',
 			param_model=RequestUserHelpAction,
 		)
 		async def request_user_help(params: RequestUserHelpAction, browser: BrowserContext):

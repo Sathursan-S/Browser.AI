@@ -358,6 +358,68 @@
         .button-group {
             display: flex;
             align-items: center;
+            gap: 8px;
+        }
+
+        .voice-button {
+            padding: 8px 12px;
+            background: #2d2d30;
+            color: #cccccc;
+            border: 1px solid #464647;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .voice-button:hover {
+            background: #3c3c3c;
+            border-color: #007acc;
+        }
+
+        .voice-button.recording {
+            background: #dc3545;
+            border-color: #dc3545;
+            color: white;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .voice-button.processing {
+            background: #ffc107;
+            border-color: #ffc107;
+            color: #212529;
+        }
+
+        .voice-button:disabled {
+            background: #5a5a5a;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.8;
+                transform: scale(1.05);
+            }
+        }
+
+        .voice-icon {
+            font-size: 16px;
+        }
+
+        .voice-status {
+            font-size: 11px;
+            color: #8e8e8e;
+            margin-top: 4px;
+            text-align: center;
+            min-height: 16px;
         }
 
         .typing-indicator {
@@ -662,8 +724,9 @@
                         Hello! I'm your Browser.AI assistant. I can help you automate web tasks.<br><br>
                         To get started:<br>
                         1. Configure your LLM settings in the sidebar<br>
-                        2. Describe what you'd like me to do<br>
-                        3. I'll execute the task and keep you updated with real-time progress
+                        2. Describe what you'd like me to do (type or use voice input 🎤)<br>
+                        3. I'll execute the task and keep you updated with real-time progress<br><br>
+                        💡 <strong>Voice Input:</strong> Click the 🎤 microphone button or press Ctrl+Shift+V to speak your task
                     </div>
                 </div>
             </div>
@@ -673,9 +736,21 @@
             </div>
 
             <div class="chat-input-container">
+                <div class="voice-status" id="voiceStatus" style="display: flex; align-items: center; justify-content: space-between; min-height: 20px;">
+                    <span id="voiceStatusText"></span>
+                    <button onclick="runVoiceDiagnostics()" 
+                            style="background: none; border: 1px solid #555; color: #888; padding: 2px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; margin-left: 10px;" 
+                            title="Run voice input diagnostics">
+                        🔍 Diagnostics
+                    </button>
+                </div>
                 <div class="chat-input-wrapper">
-                    <textarea class="chat-input" id="chatInput" placeholder="Describe what you'd like me to do (e.g., 'Search for Python tutorials on Google and summarize the top 5 results')" rows="1"></textarea>
+                    <textarea class="chat-input" id="chatInput" placeholder="Type or click 🎤 to speak your task (e.g., 'Search for Python tutorials and download the top 5 PDFs')" rows="1"></textarea>
                     <div class="button-group">
+                        <button class="voice-button" id="voiceBtn" onclick="toggleVoiceInput()" title="Voice Input (Click to speak)">
+                            <span class="voice-icon" id="voiceIcon">🎤</span>
+                            <span id="voiceBtnText">Speak</span>
+                        </button>
                         <button class="send-button" id="sendBtn" onclick="sendMessage()">Send</button>
                     </div>
                 </div>
@@ -687,12 +762,18 @@
         const socket = io();
         let isTaskRunning = false;
         let configCache = null;
+        
+        // Voice recognition variables
+        let recognition = null;
+        let isRecording = false;
+        let voiceTranscript = '';
 
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
             loadConfig();
             setupEventListeners();
             autoResizeTextarea();
+            initializeVoiceRecognition();
         });
 
         // Socket events
@@ -1008,28 +1089,91 @@
             }
         }
 
-        // CAPTCHA Modal Functions
+        // User Help Modal Functions
         function showCaptchaModal(message) {
             console.log('showCaptchaModal called with message:', message);
             const modal = document.getElementById('captchaModal');
             const messageDiv = document.getElementById('captchaMessage');
+            const titleDiv = document.getElementById('modalTitle');
+            const instructionsList = document.getElementById('instructionsList');
+            const autoResumeNote = document.getElementById('autoResumeNote');
             
-            // Update message if provided
+            let helpMessage = '';
+            let helpType = 'general';
+            
+            // Parse the message to extract the actual help message and type
             if (message && message.includes('Requesting user help:')) {
-                const helpMessage = message.substring(message.indexOf(':') + 1).trim();
-                messageDiv.textContent = helpMessage;
+                helpMessage = message.substring(message.indexOf(':') + 1).trim();
             } else {
-                messageDiv.textContent = message || 'The agent needs your help to continue.';
+                helpMessage = message || 'The agent needs your help to continue.';
             }
             
+            // Determine the type of help needed and customize the UI
+            if (helpMessage.toLowerCase().includes('captcha') || helpMessage.toLowerCase().includes('verification') || helpMessage.toLowerCase().includes('robot')) {
+                helpType = 'captcha';
+                titleDiv.textContent = '🛡️ CAPTCHA Verification Required';
+                instructionsList.innerHTML = `
+                    <li><strong>Switch to the browser window</strong></li>
+                    <li><strong>Complete the CAPTCHA or verification</strong></li>
+                    <li><strong>Wait for the page to load</strong> - Task will auto-resume</li>
+                `;
+                autoResumeNote.style.display = 'block';
+                startAutoResumeMonitoring();
+            } else if (helpMessage.toLowerCase().includes('login') || helpMessage.toLowerCase().includes('sign in') || helpMessage.toLowerCase().includes('authentication')) {
+                helpType = 'authentication';
+                titleDiv.textContent = '🔐 Login Required';
+                instructionsList.innerHTML = `
+                    <li><strong>Switch to the browser window</strong></li>
+                    <li><strong>Enter your login credentials</strong></li>
+                    <li><strong>Complete the login process</strong></li>
+                    <li><strong>Click "Continue Task" when logged in</strong></li>
+                `;
+                autoResumeNote.style.display = 'none';
+            } else if (helpMessage.toLowerCase().includes('payment') || helpMessage.toLowerCase().includes('checkout') || helpMessage.toLowerCase().includes('billing')) {
+                helpType = 'payment';
+                titleDiv.textContent = '💳 Payment Required';
+                instructionsList.innerHTML = `
+                    <li><strong>Switch to the browser window</strong></li>
+                    <li><strong>Review the payment details carefully</strong></li>
+                    <li><strong>Enter payment information if you wish to proceed</strong></li>
+                    <li><strong>Complete or cancel the transaction</strong></li>
+                    <li><strong>Click "Continue Task" when finished</strong></li>
+                `;
+                autoResumeNote.style.display = 'none';
+            } else if (helpMessage.toLowerCase().includes('signup') || helpMessage.toLowerCase().includes('register') || helpMessage.toLowerCase().includes('account')) {
+                helpType = 'signup';
+                titleDiv.textContent = '📝 Registration Required';
+                instructionsList.innerHTML = `
+                    <li><strong>Switch to the browser window</strong></li>
+                    <li><strong>Fill out the registration form</strong></li>
+                    <li><strong>Provide required information</strong></li>
+                    <li><strong>Complete the signup process</strong></li>
+                    <li><strong>Click "Continue Task" when finished</strong></li>
+                `;
+                autoResumeNote.style.display = 'none';
+            } else {
+                titleDiv.textContent = '🤖 User Assistance Required';
+                instructionsList.innerHTML = `
+                    <li><strong>Switch to the browser window</strong></li>
+                    <li><strong>Complete the required action manually</strong></li>
+                    <li><strong>Click "Continue Task" when finished</strong></li>
+                `;
+                autoResumeNote.style.display = 'none';
+            }
+            
+            messageDiv.textContent = helpMessage;
             modal.style.display = 'block';
-            console.log('Modal should now be visible');
+            console.log('Modal should now be visible for type:', helpType);
             
-            // Add to chat log
-            addSystemMessage('⚠️ Task paused - User assistance required');
-            
-            // Start monitoring for auto-resume
-            startAutoResumeMonitoring();
+            // Add to chat log with appropriate message
+            const statusMessages = {
+                'captcha': '⚠️ Task paused - CAPTCHA verification required',
+                'authentication': '⚠️ Task paused - Login required',
+                'payment': '⚠️ Task paused - Payment step requires attention',
+                'signup': '⚠️ Task paused - Registration required',
+                'general': '⚠️ Task paused - User assistance required'
+            };
+            addSystemMessage(statusMessages[helpType] || statusMessages['general']);
         }
 
         let autoResumeInterval;
@@ -1155,26 +1299,473 @@
                 .then(status => updateStatus(status))
                 .catch(error => console.error('Error checking status:', error));
         }, 5000);
+
+        // Voice Recognition Functions
+        function initializeVoiceRecognition() {
+            // Check if browser supports Web Speech API
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                console.warn('Speech recognition not supported in this browser');
+                const voiceBtn = document.getElementById('voiceBtn');
+                voiceBtn.disabled = true;
+                
+                const browserName = getBrowserName();
+                const errorDetails = `🚫 Voice Input Not Supported\n\n` +
+                    `Your browser (${browserName}) doesn't support Web Speech API.\n\n` +
+                    `💡 Recommended Browsers:\n` +
+                    `• Google Chrome (Recommended) - Full support\n` +
+                    `• Microsoft Edge - Full support\n` +
+                    `• Safari (macOS/iOS) - Limited support\n` +
+                    `• Opera - Full support\n\n` +
+                    `⚠️ Not Supported:\n` +
+                    `• Firefox (currently no support)\n` +
+                    `• Internet Explorer\n\n` +
+                    `📖 Solution:\n` +
+                    `Please use Google Chrome or Microsoft Edge for voice input features.`;
+                
+                voiceBtn.title = errorDetails;
+                document.getElementById('voiceStatus').title = errorDetails;
+                document.getElementById('voiceStatus').style.cursor = 'help';
+                updateVoiceStatus('❌ Voice not supported in ' + browserName);
+                
+                // Show detailed error message
+                console.group('🎤 Voice Input Initialization');
+                console.warn('Browser:', browserName);
+                console.warn('Web Speech API support: Not available');
+                console.info('Recommendation: Use Google Chrome or Microsoft Edge');
+                console.groupEnd();
+                
+                return;
+            }
+
+            // Initialize speech recognition
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            
+            // Configure recognition
+            recognition.continuous = false;  // Stop after one result
+            recognition.interimResults = true;  // Show interim results
+            recognition.lang = 'en-US';  // Default to English
+            recognition.maxAlternatives = 1;
+
+            // Handle results
+            recognition.onresult = function(event) {
+                let interimTranscript = '';
+                let finalTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        finalTranscript += transcript + ' ';
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+
+                // Update input with transcript
+                const chatInput = document.getElementById('chatInput');
+                if (finalTranscript) {
+                    voiceTranscript += finalTranscript;
+                    chatInput.value = voiceTranscript.trim();
+                    updateVoiceStatus('✓ Captured: ' + finalTranscript.trim());
+                } else if (interimTranscript) {
+                    updateVoiceStatus('Listening: ' + interimTranscript);
+                }
+
+                // Auto-resize textarea
+                chatInput.style.height = 'auto';
+                chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
+            };
+
+            // Handle end of speech
+            recognition.onend = function() {
+                console.log('Speech recognition ended');
+                stopVoiceRecording();
+            };
+
+            // Handle errors
+            recognition.onerror = function(event) {
+                console.error('Speech recognition error:', event.error, event);
+                let errorMessage = '';
+                let errorType = '';
+                let troubleshooting = '';
+                
+                switch(event.error) {
+                    case 'no-speech':
+                        errorType = '🔇 No Speech Detected';
+                        errorMessage = 'We didn\'t hear anything. Please check:';
+                        troubleshooting = '• Make sure your microphone is working\n• Speak clearly and closer to the microphone\n• Check if other apps can use your microphone';
+                        break;
+                    case 'audio-capture':
+                        errorType = '🎤 Microphone Not Found';
+                        errorMessage = 'Cannot access your microphone. Please check:';
+                        troubleshooting = '• Ensure a microphone is connected to your device\n• Check if your microphone is properly plugged in\n• Try using a different USB port (if applicable)\n• Verify microphone is selected as default input in system settings';
+                        break;
+                    case 'not-allowed':
+                        errorType = '🚫 Microphone Permission Denied';
+                        errorMessage = 'Browser doesn\'t have permission to use your microphone.';
+                        troubleshooting = '• Click the lock/info icon in the address bar\n• Select "Site settings" or "Permissions"\n• Allow microphone access for this site\n• Refresh the page after granting permission\n• On Chrome: chrome://settings/content/microphone';
+                        break;
+                    case 'network':
+                        errorType = '🌐 Network Error';
+                        errorMessage = 'Voice recognition requires internet connection.';
+                        troubleshooting = '• Check your internet connection\n• Try refreshing the page\n• If using VPN, try disabling it temporarily\n• Contact your network administrator if the issue persists';
+                        break;
+                    case 'aborted':
+                        errorType = '⏹️ Recording Stopped';
+                        errorMessage = 'Voice recording was cancelled.';
+                        troubleshooting = 'This is usually not an error. Click the microphone button to try again.';
+                        break;
+                    case 'service-not-allowed':
+                        errorType = '⛔ Service Not Allowed';
+                        errorMessage = 'Speech recognition service is not allowed.';
+                        troubleshooting = '• Your browser may block this in incognito/private mode\n• Try using a normal browser window\n• Check browser security settings\n• Ensure you\'re using HTTPS (not HTTP)';
+                        break;
+                    case 'bad-grammar':
+                        errorType = '📝 Configuration Error';
+                        errorMessage = 'Speech recognition configuration error.';
+                        troubleshooting = '• Try refreshing the page\n• Clear browser cache and cookies\n• Update your browser to the latest version';
+                        break;
+                    case 'language-not-supported':
+                        errorType = '🌍 Language Not Supported';
+                        errorMessage = 'The selected language is not supported.';
+                        troubleshooting = '• Default language is English (en-US)\n• Try refreshing the page\n• Contact support if this persists';
+                        break;
+                    default:
+                        errorType = '❌ Unknown Error';
+                        errorMessage = 'An unexpected error occurred: ' + event.error;
+                        troubleshooting = '• Try refreshing the page\n• Clear browser cache\n• Try a different browser (Chrome recommended)\n• Check browser console for details (F12)';
+                }
+                
+                // Display detailed error in console for debugging
+                console.group('🎤 Voice Input Error Details');
+                console.error('Error Type:', errorType);
+                console.error('Error Code:', event.error);
+                console.error('Message:', errorMessage);
+                console.error('Troubleshooting Steps:', troubleshooting);
+                console.groupEnd();
+                
+                // Show user-friendly error in UI
+                const fullErrorMessage = `${errorType}\n${errorMessage}\n\n💡 Troubleshooting:\n${troubleshooting}`;
+                updateVoiceStatus(errorType + ' - Click for details');
+                
+                // Store detailed error for display
+                const voiceStatus = document.getElementById('voiceStatus');
+                voiceStatus.title = fullErrorMessage;
+                voiceStatus.style.cursor = 'help';
+                
+                // Show error in message area
+                addErrorMessage(fullErrorMessage);
+                
+                stopVoiceRecording();
+            };
+
+            // Handle start
+            recognition.onstart = function() {
+                console.log('Speech recognition started');
+                updateVoiceStatus('🎤 Listening... Speak now');
+            };
+
+            console.log('Voice recognition initialized successfully');
+        }
+
+        function toggleVoiceInput() {
+            if (!recognition) {
+                updateVoiceStatus('Voice input not available');
+                return;
+            }
+
+            if (isRecording) {
+                stopVoiceRecording();
+            } else {
+                startVoiceRecording();
+            }
+        }
+
+        function startVoiceRecording() {
+            if (!recognition || isTaskRunning) {
+                if (isTaskRunning) {
+                    updateVoiceStatus('⚠️ Cannot use voice input while task is running');
+                }
+                return;
+            }
+
+            try {
+                // Check microphone permission first
+                navigator.mediaDevices.getUserMedia({ audio: true })
+                    .then(stream => {
+                        // Stop the stream immediately as we just needed to check permission
+                        stream.getTracks().forEach(track => track.stop());
+                        
+                        // Now start actual voice recognition
+                        isRecording = true;
+                        voiceTranscript = document.getElementById('chatInput').value; // Preserve existing text
+                        
+                        const voiceBtn = document.getElementById('voiceBtn');
+                        const voiceIcon = document.getElementById('voiceIcon');
+                        const voiceBtnText = document.getElementById('voiceBtnText');
+                        
+                        voiceBtn.classList.add('recording');
+                        voiceIcon.textContent = '🔴';
+                        voiceBtnText.textContent = 'Recording...';
+                        voiceBtn.title = 'Click to stop recording';
+                        
+                        updateVoiceStatus('🎤 Listening... Click to stop');
+                        
+                        recognition.start();
+                    })
+                    .catch(error => {
+                        console.error('Microphone access error:', error);
+                        let errorMsg = '🎤 Microphone Access Error\n\n';
+                        
+                        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                            errorMsg += 'Permission to use microphone was denied.\n\n';
+                            errorMsg += '💡 To fix this:\n';
+                            errorMsg += '1. Click the lock/info icon in the address bar\n';
+                            errorMsg += '2. Find "Microphone" in the permissions list\n';
+                            errorMsg += '3. Change it to "Allow"\n';
+                            errorMsg += '4. Refresh this page\n\n';
+                            errorMsg += 'Or run diagnostics for more info (see console).';
+                        } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+                            errorMsg += 'No microphone was found on your device.\n\n';
+                            errorMsg += '💡 To fix this:\n';
+                            errorMsg += '1. Check if a microphone is connected\n';
+                            errorMsg += '2. Try a different USB port\n';
+                            errorMsg += '3. Check system sound settings\n';
+                            errorMsg += '4. Restart your browser\n';
+                        } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+                            errorMsg += 'Microphone is being used by another application.\n\n';
+                            errorMsg += '💡 To fix this:\n';
+                            errorMsg += '1. Close other apps using the microphone\n';
+                            errorMsg += '2. Check video call apps (Zoom, Teams, etc.)\n';
+                            errorMsg += '3. Restart your browser\n';
+                        } else {
+                            errorMsg += `Unexpected error: ${error.name}\n`;
+                            errorMsg += `Message: ${error.message}\n\n`;
+                            errorMsg += 'Try refreshing the page or using a different browser.';
+                        }
+                        
+                        updateVoiceStatus('❌ Microphone error - Click for details');
+                        addErrorMessage(errorMsg);
+                        console.group('🎤 Microphone Access Error');
+                        console.error('Error Name:', error.name);
+                        console.error('Error Message:', error.message);
+                        console.error('Full Error:', error);
+                        console.groupEnd();
+                    });
+            } catch (error) {
+                console.error('Error starting recognition:', error);
+                const errorMsg = `❌ Voice Recognition Error\n\n${error.message}\n\nTry refreshing the page.`;
+                updateVoiceStatus('❌ Error - Check console (F12)');
+                addErrorMessage(errorMsg);
+                stopVoiceRecording();
+            }
+        }
+
+        function stopVoiceRecording() {
+            if (!recognition) {
+                return;
+            }
+
+            isRecording = false;
+            
+            const voiceBtn = document.getElementById('voiceBtn');
+            const voiceIcon = document.getElementById('voiceIcon');
+            const voiceBtnText = document.getElementById('voiceBtnText');
+            
+            voiceBtn.classList.remove('recording');
+            voiceBtn.classList.remove('processing');
+            voiceIcon.textContent = '🎤';
+            voiceBtnText.textContent = 'Speak';
+            voiceBtn.title = 'Voice Input (Click to speak)';
+            
+            try {
+                recognition.stop();
+            } catch (error) {
+                console.warn('Error stopping recognition:', error);
+            }
+
+            // Clear status after a delay
+            setTimeout(() => {
+                if (!isRecording) {
+                    updateVoiceStatus('');
+                }
+            }, 3000);
+        }
+
+        function updateVoiceStatus(message) {
+            const statusDiv = document.getElementById('voiceStatus');
+            const statusText = document.getElementById('voiceStatusText');
+            if (statusText) {
+                statusText.textContent = message;
+            } else {
+                statusDiv.textContent = message;
+            }
+        }
+
+        // Helper function to display error messages in chat
+        function addErrorMessage(errorMessage) {
+            const messagesDiv = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message';
+            
+            const timestamp = new Date().toLocaleTimeString();
+            
+            messageDiv.innerHTML = `
+                <div class="message-header">
+                    <div class="message-avatar error">⚠️</div>
+                    <div>
+                        <div class="message-sender">Voice Input Error</div>
+                        <div class="message-time">${timestamp}</div>
+                    </div>
+                </div>
+                <div class="message-content error" style="white-space: pre-wrap; font-family: monospace; font-size: 12px;">
+                    ${errorMessage}
+                </div>
+            `;
+            
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Helper function to detect browser
+        function getBrowserName() {
+            const userAgent = navigator.userAgent;
+            let browserName = 'Unknown Browser';
+            
+            if (userAgent.indexOf('Firefox') > -1) {
+                browserName = 'Mozilla Firefox';
+            } else if (userAgent.indexOf('SamsungBrowser') > -1) {
+                browserName = 'Samsung Internet';
+            } else if (userAgent.indexOf('Opera') > -1 || userAgent.indexOf('OPR') > -1) {
+                browserName = 'Opera';
+            } else if (userAgent.indexOf('Trident') > -1) {
+                browserName = 'Internet Explorer';
+            } else if (userAgent.indexOf('Edge') > -1 || userAgent.indexOf('Edg') > -1) {
+                browserName = 'Microsoft Edge';
+            } else if (userAgent.indexOf('Chrome') > -1) {
+                browserName = 'Google Chrome';
+            } else if (userAgent.indexOf('Safari') > -1) {
+                browserName = 'Safari';
+            }
+            
+            return browserName;
+        }
+
+        // Helper function to check microphone permissions
+        async function checkMicrophonePermission() {
+            try {
+                if (!navigator.permissions) {
+                    console.warn('Permissions API not supported');
+                    return 'unknown';
+                }
+                
+                const result = await navigator.permissions.query({ name: 'microphone' });
+                console.log('Microphone permission status:', result.state);
+                
+                // Listen for permission changes
+                result.addEventListener('change', function() {
+                    console.log('Microphone permission changed to:', this.state);
+                    if (this.state === 'granted') {
+                        updateVoiceStatus('✅ Microphone access granted!');
+                        document.getElementById('voiceBtn').disabled = false;
+                    } else if (this.state === 'denied') {
+                        updateVoiceStatus('❌ Microphone access denied');
+                        document.getElementById('voiceBtn').disabled = true;
+                    }
+                });
+                
+                return result.state;
+            } catch (error) {
+                console.warn('Could not check microphone permission:', error);
+                return 'unknown';
+            }
+        }
+
+        // Add diagnostic button functionality
+        function runVoiceDiagnostics() {
+            console.group('🔍 Voice Input Diagnostics');
+            
+            // Check browser support
+            const hasWebSpeech = ('webkitSpeechRecognition' in window) || ('SpeechRecognition' in window);
+            console.log('✓ Browser:', getBrowserName());
+            console.log('✓ Web Speech API Support:', hasWebSpeech ? 'Yes ✅' : 'No ❌');
+            
+            // Check HTTPS
+            const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
+            console.log('✓ Secure Context (HTTPS):', isSecure ? 'Yes ✅' : 'No ❌');
+            
+            // Check microphone permission
+            checkMicrophonePermission().then(permission => {
+                console.log('✓ Microphone Permission:', permission);
+                
+                // Check for available audio devices
+                if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+                    navigator.mediaDevices.enumerateDevices().then(devices => {
+                        const audioInputs = devices.filter(device => device.kind === 'audioinput');
+                        console.log('✓ Audio Input Devices:', audioInputs.length);
+                        audioInputs.forEach((device, index) => {
+                            console.log(`  ${index + 1}. ${device.label || 'Unnamed device'}`);
+                        });
+                        
+                        console.groupEnd();
+                        
+                        // Show summary in UI
+                        let diagnosticSummary = '🔍 Voice Input Diagnostics:\n\n';
+                        diagnosticSummary += `Browser: ${getBrowserName()}\n`;
+                        diagnosticSummary += `Web Speech API: ${hasWebSpeech ? '✅ Supported' : '❌ Not Supported'}\n`;
+                        diagnosticSummary += `Secure Context: ${isSecure ? '✅ Yes' : '❌ No (Requires HTTPS)'}\n`;
+                        diagnosticSummary += `Microphone Permission: ${permission}\n`;
+                        diagnosticSummary += `Audio Input Devices: ${audioInputs.length} found\n`;
+                        
+                        if (!hasWebSpeech) {
+                            diagnosticSummary += '\n⚠️ Please use Chrome or Edge for voice input.';
+                        } else if (permission === 'denied') {
+                            diagnosticSummary += '\n⚠️ Please grant microphone permission in browser settings.';
+                        } else if (audioInputs.length === 0) {
+                            diagnosticSummary += '\n⚠️ No microphone detected. Please connect a microphone.';
+                        } else if (permission === 'granted') {
+                            diagnosticSummary += '\n✅ Voice input should work!';
+                        }
+                        
+                        updateVoiceStatus('Diagnostics complete - Check console (F12)');
+                        alert(diagnosticSummary);
+                    }).catch(err => {
+                        console.error('Error enumerating devices:', err);
+                        console.groupEnd();
+                    });
+                } else {
+                    console.warn('MediaDevices API not supported');
+                    console.groupEnd();
+                }
+            });
+        }
+
+        // Add keyboard shortcut for voice input (Ctrl+Shift+V)
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.shiftKey && e.key === 'V') {
+                e.preventDefault();
+                toggleVoiceInput();
+            }
+        });
     </script>
     
-    <!-- CAPTCHA Help Modal -->
+    <!-- User Help Modal -->
     <div id="captchaModal" class="modal" style="display: none;">
         <div class="modal-content">
             <span class="modal-close" onclick="closeCaptchaModal()">&times;</span>
-            <h3>🤖 User Assistance Required</h3>
+            <h3 id="modalTitle">🤖 User Assistance Required</h3>
             <div id="captchaMessage">
-                The agent has encountered a CAPTCHA or other verification that requires manual intervention.
+                The agent requires manual intervention to continue.
             </div>
-            <div class="modal-instructions">
+            <div class="modal-instructions" id="modalInstructions">
                 <p>Please:</p>
-                <ol>
+                <ol id="instructionsList">
                     <li><strong>Switch to the browser window</strong></li>
-                    <li><strong>Complete the CAPTCHA or verification manually</strong></li>
-                    <li><strong>Wait for the page to load</strong> - The task will resume automatically when the page changes</li>
-                    <li>Or click "Continue Task" below if the page has already changed</li>
+                    <li><strong>Complete the required action manually</strong></li>
+                    <li><strong>Click "Continue Task" below when finished</strong></li>
                 </ol>
-                <div class="auto-resume-note">
-                    <small>💡 <em>The task will auto-resume when it detects you've solved the CAPTCHA</em></small>
+                <div class="auto-resume-note" id="autoResumeNote" style="display: none;">
+                    <small>💡 <em>The task will auto-resume when it detects the page has changed</em></small>
                 </div>
             </div>
             <div class="modal-actions">
