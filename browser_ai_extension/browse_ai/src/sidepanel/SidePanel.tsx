@@ -16,7 +16,13 @@ import {
   RECONNECTION_DELAY_MS,
 } from '../types/protocol'
 import { loadSettings, onSettingsChanged, formatTimestamp, openOptionsPage } from '../utils/helpers'
-import { loadTaskStatus, saveTaskStatus, loadCdpEndpoint, saveCdpEndpoint, onTaskStatusChanged } from '../utils/state'
+import {
+  loadTaskStatus,
+  saveTaskStatus,
+  loadCdpEndpoint,
+  saveCdpEndpoint,
+  onTaskStatusChanged,
+} from '../utils/state'
 
 export const SidePanel = () => {
   const [socket, setSocket] = useState<Socket | null>(null)
@@ -37,21 +43,21 @@ export const SidePanel = () => {
   useEffect(() => {
     loadSettings().then(setSettings)
     onSettingsChanged(setSettings)
-    
+
     // Load persisted task status from chrome storage using state manager
     loadTaskStatus().then((status) => {
       if (status) {
         setTaskStatus(status)
       }
     })
-    
+
     // Load persisted CDP endpoint
     loadCdpEndpoint().then((endpoint) => {
       if (endpoint) {
         setCdpEndpoint(endpoint)
       }
     })
-    
+
     // Listen for task status changes from other extension pages
     onTaskStatusChanged(setTaskStatus)
   }, [])
@@ -131,6 +137,19 @@ export const SidePanel = () => {
     newSocket.on('status', (status: ProtocolTaskStatus) => {
       setTaskStatus(status)
       console.log('Received status update:', status)
+
+      // Notify user about task completion or failure
+      if (!status.is_running && typeof status.current_task === 'string') {
+        if (status.current_task.includes('completed')) {
+          showNotificationPopup(
+            'task_complete',
+            'Task completed successfully!',
+            status.current_task,
+          )
+        } else if (status.current_task.includes('failed')) {
+          showNotificationPopup('error', 'Task failed', status.current_task)
+        }
+      }
     })
 
     newSocket.on('log_event', (event: LogEvent) => {
@@ -262,7 +281,7 @@ export const SidePanel = () => {
     }
 
     socket.emit('start_task', payload)
-    
+
     // Don't update state optimistically - wait for server status update via 'status' event
     addSystemLog(`Starting task: ${task}`, 'INFO')
   }
@@ -311,11 +330,7 @@ export const SidePanel = () => {
             <h1>Browser.AI</h1>
           </div>
           <div className="header-actions">
-            <button 
-              className="settings-button" 
-              onClick={openOptionsPage}
-              title="Settings"
-            >
+            <button className="settings-button" onClick={openOptionsPage} title="Settings">
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                 <path
                   d="M10 6.5C8.067 6.5 6.5 8.067 6.5 10C6.5 11.933 8.067 13.5 10 13.5C11.933 13.5 13.5 11.933 13.5 10C13.5 8.067 11.933 6.5 10 6.5Z"
@@ -357,11 +372,7 @@ export const SidePanel = () => {
         />
 
         {/* Execution Logs */}
-        <ExecutionLog 
-          logs={logs} 
-          onClear={clearLogs} 
-          devMode={settings.devMode}
-        />
+        <ExecutionLog logs={logs} onClear={clearLogs} devMode={settings.devMode} />
       </div>
 
       {/* Chat Input at Bottom */}
