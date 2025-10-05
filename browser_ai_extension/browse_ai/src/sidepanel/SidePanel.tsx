@@ -9,12 +9,13 @@ import { TaskStatus } from './components/TaskStatus'
 import {
   TaskStatus as ProtocolTaskStatus,
   StartTaskPayload,
-  DEFAULT_SERVER_URL,
+  ExtensionSettings,
+  DEFAULT_SETTINGS,
+  WEBSOCKET_NAMESPACE,
   MAX_RECONNECTION_ATTEMPTS,
   RECONNECTION_DELAY_MS,
-  MAX_LOGS,
-  WEBSOCKET_NAMESPACE,
 } from '../types/protocol'
+import { loadSettings, onSettingsChanged, formatTimestamp, openOptionsPage } from '../utils/helpers'
 
 export const SidePanel = () => {
   const [socket, setSocket] = useState<Socket | null>(null)
@@ -26,15 +27,22 @@ export const SidePanel = () => {
     has_agent: false,
     is_paused: false,
   })
-  const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER_URL)
+  const [settings, setSettings] = useState<ExtensionSettings>(DEFAULT_SETTINGS)
   const [cdpEndpoint, setCdpEndpoint] = useState('')
   const logsEndRef = useRef<HTMLDivElement>(null)
+  const socketRef = useRef<Socket | null>(null)
+
+  // Load settings on mount
+  useEffect(() => {
+    loadSettings().then(setSettings)
+    onSettingsChanged(setSettings)
+  }, [])
 
   // Add log to list with bounded size
   const addLog = (event: LogEvent) => {
     setLogs((prev) => {
       const updated = [...prev, event]
-      return updated.length > MAX_LOGS ? updated.slice(-MAX_LOGS) : updated
+      return updated.length > settings.maxLogs ? updated.slice(-settings.maxLogs) : updated
     })
   }
 
@@ -44,6 +52,8 @@ export const SidePanel = () => {
     message: string,
     details?: string,
   ) => {
+    if (!settings.showNotifications) return
+
     try {
       await chrome.runtime.sendMessage({
         type: 'SHOW_NOTIFICATION',
@@ -61,11 +71,16 @@ export const SidePanel = () => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [logs])
 
-  // Initialize socket connection
+  // Initialize socket connection - reconnect when settings change
   useEffect(() => {
-    const newSocket = io(`${serverUrl}${WEBSOCKET_NAMESPACE}`, {
+    // Clean up existing socket
+    if (socketRef.current) {
+      socketRef.current.close()
+    }
+
+    const newSocket = io(`${settings.serverUrl}${WEBSOCKET_NAMESPACE}`, {
       transports: ['websocket'],
-      reconnection: true,
+      reconnection: settings.autoReconnect,
       reconnectionAttempts: MAX_RECONNECTION_ATTEMPTS,
       reconnectionDelay: RECONNECTION_DELAY_MS,
     })
@@ -137,11 +152,12 @@ export const SidePanel = () => {
     })
 
     setSocket(newSocket)
+    socketRef.current = newSocket
 
     return () => {
       newSocket.close()
     }
-  }, [serverUrl])
+  }, [settings.serverUrl, settings.autoReconnect])
 
   // Get CDP endpoint from background script
   const getCdpEndpoint = async () => {
@@ -180,7 +196,7 @@ export const SidePanel = () => {
     }
     setLogs((prev) => {
       const updated = [...prev, event]
-      return updated.length > MAX_LOGS ? updated.slice(-MAX_LOGS) : updated
+      return updated.length > settings.maxLogs ? updated.slice(-settings.maxLogs) : updated
     })
   }
 
@@ -276,28 +292,35 @@ export const SidePanel = () => {
             </svg>
             <h1>Browser.AI</h1>
           </div>
-          <div className="connection-status">
-            <span className={`status-dot ${connected ? 'connected' : 'disconnected'}`}></span>
-            <span className="status-text">{connected ? 'Connected' : 'Disconnected'}</span>
+          <div className="header-actions">
+            <button 
+              className="settings-button" 
+              onClick={openOptionsPage}
+              title="Settings"
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path
+                  d="M10 6.5C8.067 6.5 6.5 8.067 6.5 10C6.5 11.933 8.067 13.5 10 13.5C11.933 13.5 13.5 11.933 13.5 10C13.5 8.067 11.933 6.5 10 6.5Z"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                />
+                <path
+                  d="M17.5 10C17.5 10.233 17.49 10.464 17.471 10.692L18.935 11.809C19.082 11.925 19.135 12.129 19.058 12.304L17.508 15.196C17.431 15.371 17.242 15.453 17.056 15.402L15.341 14.839C14.995 15.111 14.616 15.344 14.21 15.531L13.964 17.312C13.939 17.503 13.773 17.647 13.579 17.647H10.479C10.285 17.647 10.119 17.503 10.094 17.312L9.848 15.531C9.442 15.344 9.063 15.111 8.717 14.839L7.002 15.402C6.816 15.453 6.627 15.371 6.55 15.196L5 12.304C4.923 12.129 4.976 11.925 5.123 11.809L6.587 10.692C6.568 10.464 6.558 10.233 6.558 10C6.558 9.767 6.568 9.536 6.587 9.308L5.123 8.191C4.976 8.075 4.923 7.871 5 7.696L6.55 4.804C6.627 4.629 6.816 4.547 7.002 4.598L8.717 5.161C9.063 4.889 9.442 4.656 9.848 4.469L10.094 2.688C10.119 2.497 10.285 2.353 10.479 2.353H13.579C13.773 2.353 13.939 2.497 13.964 2.688L14.21 4.469C14.616 4.656 14.995 4.889 15.341 5.161L17.056 4.598C17.242 4.547 17.431 4.629 17.508 4.804L19.058 7.696C19.135 7.871 19.082 8.075 18.935 8.191L17.471 9.308C17.49 9.536 17.5 9.767 17.5 10Z"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                />
+              </svg>
+            </button>
+            <div className="connection-status">
+              <span className={`status-dot ${connected ? 'connected' : 'disconnected'}`}></span>
+              <span className="status-text">{connected ? 'Connected' : 'Disconnected'}</span>
+            </div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
       <div className="sidepanel-content">
-        {/* Server Configuration */}
-        <div className="config-section">
-          <div className="config-label">Server URL</div>
-          <input
-            type="text"
-            className="server-url-input"
-            value={serverUrl}
-            onChange={(e) => setServerUrl(e.target.value)}
-            placeholder="http://localhost:5000"
-            disabled={connected}
-          />
-        </div>
-
         {/* Task Status Banner */}
         <TaskStatus
           isRunning={taskStatus.is_running}
@@ -316,7 +339,11 @@ export const SidePanel = () => {
         />
 
         {/* Execution Logs */}
-        <ExecutionLog logs={logs} onClear={clearLogs} />
+        <ExecutionLog 
+          logs={logs} 
+          onClear={clearLogs} 
+          devMode={settings.devMode}
+        />
       </div>
 
       {/* Chat Input at Bottom */}

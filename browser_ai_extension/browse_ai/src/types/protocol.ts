@@ -34,6 +34,29 @@ export enum EventType {
 }
 
 // ============================================================================
+// Settings & Configuration
+// ============================================================================
+
+/**
+ * Extension settings stored in Chrome storage
+ */
+export interface ExtensionSettings {
+  serverUrl: string
+  devMode: boolean
+  autoReconnect: boolean
+  maxLogs: number
+  showNotifications: boolean
+}
+
+export const DEFAULT_SETTINGS: ExtensionSettings = {
+  serverUrl: 'http://localhost:5000',
+  devMode: false,
+  autoReconnect: true,
+  maxLogs: 1000,
+  showNotifications: true,
+}
+
+// ============================================================================
 // Data Structures
 // ============================================================================
 
