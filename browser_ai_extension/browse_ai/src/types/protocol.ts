@@ -1,9 +1,9 @@
 /**
  * Browser.AI WebSocket Protocol
- * 
+ *
  * Shared protocol definitions for communication between the Chrome extension
  * and the Browser.AI server over WebSocket connections.
- * 
+ *
  * Namespace: /extension
  */
 
@@ -198,7 +198,7 @@ export interface ServerToClientEvents {
 export type ExtensionSocket = {
   on<Event extends keyof ServerToClientEvents>(
     event: Event,
-    listener: ServerToClientEvents[Event]
+    listener: ServerToClientEvents[Event],
   ): void
   emit<Event extends keyof ClientToServerEvents>(
     event: Event,
