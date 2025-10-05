@@ -136,12 +136,15 @@ export const SidePanel = () => {
         console.log('Task action result:', result)
 
         if (result.success) {
+          // Request updated status from server instead of updating locally
           newSocket.emit('get_status')
           if (result.message) {
             addSystemLog(result.message, 'INFO')
           }
         } else if (result.error) {
           addSystemLog(result.error, 'ERROR')
+          // Also request status on error to ensure UI is in sync
+          newSocket.emit('get_status')
         }
       },
     )
@@ -227,46 +230,29 @@ export const SidePanel = () => {
     }
 
     socket.emit('start_task', payload)
-
-    setTaskStatus((prev) => ({
-      ...prev,
-      is_running: true,
-      is_paused: false,
-      current_task: task,
-    }))
-
+    
+    // Don't update state optimistically - wait for server status update via 'status' event
     addSystemLog(`Starting task: ${task}`, 'INFO')
   }
 
   const handleStopTask = () => {
     if (!connected || !socket) return
     socket.emit('stop_task')
-    setTaskStatus((prev) => ({
-      ...prev,
-      is_running: false,
-      is_paused: false,
-      current_task: null,
-    }))
+    // Don't update state optimistically - wait for server status update
     addSystemLog('Stopping task...', 'INFO')
   }
 
   const handlePauseTask = () => {
     if (!connected || !socket) return
     socket.emit('pause_task')
-    setTaskStatus((prev) => ({
-      ...prev,
-      is_paused: true,
-    }))
+    // Don't update state optimistically - wait for server status update
     addSystemLog('Pausing task...', 'INFO')
   }
 
   const handleResumeTask = () => {
     if (!connected || !socket) return
     socket.emit('resume_task')
-    setTaskStatus((prev) => ({
-      ...prev,
-      is_paused: false,
-    }))
+    // Don't update state optimistically - wait for server status update
     addSystemLog('Resuming task...', 'INFO')
   }
 

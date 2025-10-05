@@ -34,6 +34,7 @@ class ExtensionTaskManager:
         self.current_agent = None
         self.current_task = None
         self.is_running = False
+        self.is_paused = False
         self.task_future: Optional[asyncio.Future] = None
         self.browser = None
         self.cdp_endpoint = None
@@ -74,6 +75,7 @@ class ExtensionTaskManager:
 
             self.current_task = task_description
             self.is_running = True
+            self.is_paused = False  # Reset pause state when starting new task
 
             # Emit custom event
             self.event_adapter.emit_custom_event(
@@ -126,6 +128,7 @@ class ExtensionTaskManager:
 
             self.current_task = task_description
             self.is_running = True
+            self.is_paused = False  # Reset pause state when starting new task
 
             # Emit custom event
             self.event_adapter.emit_custom_event(
@@ -169,6 +172,7 @@ class ExtensionTaskManager:
             )
         finally:
             self.is_running = False
+            self.is_paused = False  # Reset pause state when task finishes
             if self.browser:
                 await self.browser.close()
             self.current_agent = None
@@ -183,6 +187,7 @@ class ExtensionTaskManager:
 
         try:
             self.current_agent.stop()
+            self.is_paused = False  # Reset pause state
             self.event_adapter.emit_custom_event(
                 EventType.AGENT_STOP, "Task stopped by user", LogLevel.INFO
             )
@@ -197,6 +202,7 @@ class ExtensionTaskManager:
 
         try:
             self.current_agent.pause()
+            self.is_paused = True  # Track pause state
             self.event_adapter.emit_custom_event(
                 EventType.AGENT_PAUSE, "Task paused by user", LogLevel.INFO
             )
@@ -211,6 +217,7 @@ class ExtensionTaskManager:
 
         try:
             self.current_agent.resume()
+            self.is_paused = False  # Track pause state
             self.event_adapter.emit_custom_event(
                 EventType.AGENT_RESUME, "Task resumed by user", LogLevel.INFO
             )
@@ -224,6 +231,7 @@ class ExtensionTaskManager:
             is_running=self.is_running,
             current_task=self.current_task,
             has_agent=self.current_agent is not None,
+            is_paused=self.is_paused,
             cdp_endpoint=self.cdp_endpoint,
         )
 
@@ -339,18 +347,27 @@ class ExtensionWebSocketHandler:
             """Handle task stop request from extension"""
             result = self.task_manager.stop_task()
             emit("task_action_result", result.to_dict())
+            # Broadcast updated status to all clients
+            status = self.task_manager.get_status()
+            self.socketio.emit("status", status.to_dict(), namespace="/extension")
 
         @self.socketio.on("pause_task", namespace="/extension")
         def handle_pause_task():
             """Handle task pause request from extension"""
             result = self.task_manager.pause_task()
             emit("task_action_result", result.to_dict())
+            # Broadcast updated status to all clients
+            status = self.task_manager.get_status()
+            self.socketio.emit("status", status.to_dict(), namespace="/extension")
 
         @self.socketio.on("resume_task", namespace="/extension")
         def handle_resume_task():
             """Handle task resume request from extension"""
             result = self.task_manager.resume_task()
             emit("task_action_result", result.to_dict())
+            # Broadcast updated status to all clients
+            status = self.task_manager.get_status()
+            self.socketio.emit("status", status.to_dict(), namespace="/extension")
 
         @self.socketio.on("get_status", namespace="/extension")
         def handle_get_status():
