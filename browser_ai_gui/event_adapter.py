@@ -189,7 +189,7 @@ class EventAdapter:
     def emit_custom_event(
         self,
         event_type: EventType,
-        message: str,
+        message: str ,
         level: LogLevel = LogLevel.INFO,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:

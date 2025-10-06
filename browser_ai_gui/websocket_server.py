@@ -158,7 +158,7 @@ class ExtensionTaskManager:
                 LogLevel.ERROR,
                 {"error": str(e)},
             )
-            
+
             return create_action_result(False, error=str(e))
 
     async def run_task(self):
@@ -173,7 +173,7 @@ class ExtensionTaskManager:
 
             self.event_adapter.emit_custom_event(
                 EventType.AGENT_COMPLETE,
-                "Task completed successfully",
+                "Task completed",
                 LogLevel.INFO,
                 {"result": str(result)},
             )
@@ -189,9 +189,21 @@ class ExtensionTaskManager:
         finally:
             self.is_running = False
             self.is_paused = False  # Reset pause state when task finishes
-            self.event_adapter.emit_custom_event(
-                EventType.AGENT_STOP, "Task stopped", LogLevel.INFO
-            )
+            # Use socketio.emit for background thread context
+            if hasattr(self, "socketio") and self.socketio:
+                self.socketio.emit(
+                    "status", self.get_status().to_dict(), namespace="/extension"
+                )
+            else:
+                # Fallback: try global SocketIO instance if available
+                try:
+                    from flask_socketio import SocketIO
+
+                    SocketIO.emit(
+                        "status", self.get_status().to_dict(), namespace="/extension"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to emit status update: {e}")
             if self.browser:
                 await self.browser.close()
             self.current_agent = None
@@ -336,6 +348,7 @@ class ExtensionWebSocketHandler:
                 emit(
                     "task_started", {"message": "Task is starting in extension mode..."}
                 )
+                emit("status", self.task_manager.get_status().to_dict())
                 return
 
             if not payload.cdp_endpoint:
