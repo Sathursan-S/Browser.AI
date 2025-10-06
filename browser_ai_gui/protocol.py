@@ -46,6 +46,7 @@ class EventType(Enum):
     AGENT_RESUME = "agent_resume"
     AGENT_STOP = "agent_stop"
     USER_HELP_NEEDED = "user_help_needed"
+    TASK_STATUS = "status"
 
 
 # ============================================================================

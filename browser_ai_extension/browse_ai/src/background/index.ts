@@ -68,19 +68,34 @@ chrome.runtime.onMessage.addListener((request: ExtensionMessage, sender, sendRes
     handleShowNotification(request, sendResponse)
     return true // Will respond asynchronously
   }
+
+  // Default case for unknown message types
+  sendResponse({ error: 'UNKNOWN_MESSAGE_TYPE' })
+  return false // Explicitly return false to prevent "message port closed" errors
 })
 
 async function handleGetCdpEndpoint(
   request: GetCdpEndpointMessage,
   sendResponse: (response: any) => void,
 ) {
-  // Since we can't get the WebSocket endpoint in extensions, we return a success
-  // indicating that CDP commands can be proxied through this extension
-  sendResponse({
-    success: true,
-    endpoint: 'extension-proxy', // Special marker indicating extension proxy mode
-    message: 'CDP commands will be proxied through the extension',
-  })
+  try {
+    const { tabId } = request
+    // Attach debugger if not already attached
+    if (!debuggerAttachments.has(tabId)) {
+      await chrome.debugger.attach({ tabId }, '1.3')
+      debuggerAttachments.set(tabId, true)
+      console.log(`Debugger attached to tab ${tabId} for CDP endpoint request`)
+    }
+    sendResponse({
+      success: true,
+      endpoint: tabId, // Use tabId as endpoint for extension-proxy mode
+      mode: 'extension-proxy',
+      message: 'CDP commands will be proxied through the extension for this tab',
+    })
+  } catch (error) {
+    console.error('Failed to attach debugger for CDP endpoint:', error)
+    sendResponse({ success: false, error: String(error) })
+  }
 }
 
 async function handleAttachDebugger(
@@ -175,9 +190,17 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 // Handle debugger detach events
 chrome.debugger.onDetach.addListener((source, reason) => {
   const tabId = source.tabId
-  if (tabId && debuggerAttachments.has(tabId)) {
-    debuggerAttachments.delete(tabId)
-    console.log(`Debugger detached from tab ${tabId}: ${reason}`)
+  // Only proceed if tabId is present (can be undefined for non-tab debugger targets)
+  if (tabId != null) {
+    if (debuggerAttachments.has(tabId)) {
+      debuggerAttachments.delete(tabId)
+      console.log(`Debugger detached from tab ${tabId}: ${reason}`)
+    } else {
+      console.log(`Debugger detach event for tab ${tabId} but no attachment was tracked: ${reason}`)
+    }
+  } else {
+    // Non-tab targets (e.g., non-tab debugging contexts) - log and ignore
+    console.log(`Debugger detached for non-tab target (no tabId): ${reason}`)
   }
 })
 

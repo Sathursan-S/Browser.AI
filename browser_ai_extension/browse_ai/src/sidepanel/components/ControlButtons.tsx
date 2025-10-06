@@ -1,6 +1,7 @@
+import React from 'react'
 import './ControlButtons.css'
 
-interface ControlButtonsProps {
+export interface ControlButtonsProps {
   isRunning: boolean
   isPaused: boolean
   connected: boolean
@@ -10,7 +11,7 @@ interface ControlButtonsProps {
   onStop?: () => void
 }
 
-export const ControlButtons = ({
+const ControlButtonsComponent: React.FC<ControlButtonsProps> = ({
   isRunning,
   isPaused,
   connected,
@@ -21,7 +22,33 @@ export const ControlButtons = ({
 }: ControlButtonsProps) => {
   // Only show control buttons when a task is actually running
   if (!isRunning) {
-    return null
+    return (
+      <div className="control-buttons-container">
+        <div className="control-status">
+          <div className="status-pulse status-idle"></div>
+          <span>Idle</span>
+        </div>
+        {onStart && (
+          <button
+            className="control-btn control-btn-start"
+            onClick={onStart}
+            disabled={!connected}
+            title="Start Task"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none" />
+              <polygon points="10,8 16,12 10,16" fill="currentColor" />
+            </svg>
+            Start
+          </button>
+        )}
+        {!onStart && (
+          <div className="control-btn control-btn-disabled" title="No start action available">
+            Waiting for task...
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -74,3 +101,5 @@ export const ControlButtons = ({
     </div>
   )
 }
+
+export const ControlButtons = React.memo(ControlButtonsComponent)

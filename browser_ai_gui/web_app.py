@@ -98,7 +98,8 @@ class TaskManager:
                 finally:
                     # Only clean up if the task is actually done or stopped
                     if self.current_agent and (
-                        self.current_agent._stopped or not self.is_running
+                        getattr(self.current_agent, "is_stopped", lambda: False)()
+                        or not self.is_running
                     ):
                         print("Task completed or stopped - cleaning up agent reference")
                         self.is_running = False

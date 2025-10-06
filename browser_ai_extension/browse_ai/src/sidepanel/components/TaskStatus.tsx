@@ -1,12 +1,18 @@
+import { R } from 'vite/dist/node/types.d-aGj9QkWt'
 import './TaskStatus.css'
+import React from 'react'
 
-interface TaskStatusProps {
+export interface TaskStatusProps {
   isRunning: boolean
   currentTask: string | null
   isPaused?: boolean
 }
 
-export const TaskStatus = ({ isRunning, currentTask, isPaused = false }: TaskStatusProps) => {
+export const TaskStatus: React.FC<TaskStatusProps> = ({
+  isRunning,
+  currentTask,
+  isPaused = false,
+}: TaskStatusProps) => {
   if (!isRunning || !currentTask) {
     return null
   }

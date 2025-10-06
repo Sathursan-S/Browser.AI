@@ -1,6 +1,6 @@
 /**
  * Global Extension State Manager
- * 
+ *
  * Handles persistent state management for the extension using Chrome storage.
  * Ensures state is maintained across extension reloads, tab changes, and browser restarts.
  */
@@ -19,7 +19,10 @@ const STATE_KEYS = {
 export const loadTaskStatus = async (): Promise<TaskStatus | null> => {
   return new Promise((resolve) => {
     chrome.storage.local.get([STATE_KEYS.TASK_STATUS], (result) => {
-      if (result[STATE_KEYS.TASK_STATUS]) {
+      if (chrome.runtime.lastError) {
+        console.error('[State] Failed to load task status:', chrome.runtime.lastError)
+        resolve(null)
+      } else if (result[STATE_KEYS.TASK_STATUS]) {
         console.log('[State] Loaded task status:', result[STATE_KEYS.TASK_STATUS])
         resolve(result[STATE_KEYS.TASK_STATUS])
       } else {
@@ -33,10 +36,15 @@ export const loadTaskStatus = async (): Promise<TaskStatus | null> => {
  * Save task status to persistent storage
  */
 export const saveTaskStatus = async (status: TaskStatus): Promise<void> => {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     chrome.storage.local.set({ [STATE_KEYS.TASK_STATUS]: status }, () => {
-      console.log('[State] Saved task status:', status)
-      resolve()
+      if (chrome.runtime.lastError) {
+        console.error('[State] Failed to save task status:', chrome.runtime.lastError)
+        reject(chrome.runtime.lastError)
+      } else {
+        console.log('[State] Saved task status:', status)
+        resolve()
+      }
     })
   })
 }
@@ -61,10 +69,15 @@ export const loadCdpEndpoint = async (): Promise<string | null> => {
  * Save CDP endpoint to persistent storage
  */
 export const saveCdpEndpoint = async (endpoint: string): Promise<void> => {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     chrome.storage.local.set({ [STATE_KEYS.CDP_ENDPOINT]: endpoint }, () => {
-      console.log('[State] Saved CDP endpoint:', endpoint)
-      resolve()
+      if (chrome.runtime.lastError) {
+        console.error('[State] Failed to save CDP endpoint:', chrome.runtime.lastError)
+        reject(chrome.runtime.lastError)
+      } else {
+        console.log('[State] Saved CDP endpoint:', endpoint)
+        resolve()
+      }
     })
   })
 }
@@ -73,9 +86,12 @@ export const saveCdpEndpoint = async (endpoint: string): Promise<void> => {
  * Load last task description from persistent storage
  */
 export const loadLastTask = async (): Promise<string | null> => {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     chrome.storage.local.get([STATE_KEYS.LAST_TASK], (result) => {
-      if (result[STATE_KEYS.LAST_TASK]) {
+      if (chrome.runtime.lastError) {
+        console.error('[State] Failed to load last task:', chrome.runtime.lastError)
+        reject(chrome.runtime.lastError)
+      } else if (result[STATE_KEYS.LAST_TASK]) {
         console.log('[State] Loaded last task:', result[STATE_KEYS.LAST_TASK])
         resolve(result[STATE_KEYS.LAST_TASK])
       } else {
@@ -89,10 +105,15 @@ export const loadLastTask = async (): Promise<string | null> => {
  * Save last task description to persistent storage
  */
 export const saveLastTask = async (task: string): Promise<void> => {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     chrome.storage.local.set({ [STATE_KEYS.LAST_TASK]: task }, () => {
-      console.log('[State] Saved last task:', task)
-      resolve()
+      if (chrome.runtime.lastError) {
+        console.error('[State] Failed to save last task:', chrome.runtime.lastError)
+        reject(chrome.runtime.lastError)
+      } else {
+        console.log('[State] Saved last task:', task)
+        resolve()
+      }
     })
   })
 }
@@ -101,10 +122,15 @@ export const saveLastTask = async (task: string): Promise<void> => {
  * Clear all extension state
  */
 export const clearExtensionState = async (): Promise<void> => {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     chrome.storage.local.remove(Object.values(STATE_KEYS), () => {
-      console.log('[State] Cleared all extension state')
-      resolve()
+      if (chrome.runtime.lastError) {
+        console.error('[State] Failed to clear extension state:', chrome.runtime.lastError)
+        reject(chrome.runtime.lastError)
+      } else {
+        console.log('[State] Cleared all extension state')
+        resolve()
+      }
     })
   })
 }
@@ -112,9 +138,7 @@ export const clearExtensionState = async (): Promise<void> => {
 /**
  * Listen for changes to task status from other extension pages
  */
-export const onTaskStatusChanged = (
-  callback: (status: TaskStatus) => void
-): void => {
+export const onTaskStatusChanged = (callback: (status: TaskStatus) => void): void => {
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === 'local' && changes[STATE_KEYS.TASK_STATUS]) {
       const newStatus = changes[STATE_KEYS.TASK_STATUS].newValue

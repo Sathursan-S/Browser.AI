@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { io, Socket } from 'socket.io-client'
 
 import './SidePanel.css'
 import { ChatInput } from './components/ChatInput'
 import { ExecutionLog, LogEvent } from './components/ExecutionLog'
-import { ControlButtons } from './components/ControlButtons'
-import { TaskStatus } from './components/TaskStatus'
+import { ControlButtons, ControlButtonsProps } from './components/ControlButtons'
+import { TaskStatus, TaskStatusProps } from './components/TaskStatus'
 import {
   TaskStatus as ProtocolTaskStatus,
   StartTaskPayload,
@@ -74,33 +74,60 @@ export const SidePanel = () => {
     }
   }, [cdpEndpoint])
 
-  // Add log to list with bounded size
-  const addLog = (event: LogEvent) => {
-    setLogs((prev) => {
+  // Shared helper for bounded log append
+  const appendBoundedLog = useCallback(
+    (prev: LogEvent[], event: LogEvent) => {
       const updated = [...prev, event]
       return updated.length > settings.maxLogs ? updated.slice(-settings.maxLogs) : updated
-    })
-  }
+    },
+    [settings.maxLogs],
+  )
+
+  // Add log to list with bounded size
+  const addLog = useCallback(
+    (event: LogEvent) => {
+      setLogs((prev) => appendBoundedLog(prev, event))
+    },
+    [setLogs, appendBoundedLog],
+  )
 
   // Show notification popup
-  const showNotificationPopup = async (
-    notificationType: 'user_interaction' | 'task_complete' | 'error',
-    message: string,
-    details?: string,
-  ) => {
-    if (!settings.showNotifications) return
+  const showNotificationPopup = useCallback(
+    async (
+      notificationType: 'user_interaction' | 'task_complete' | 'error',
+      message: string,
+      details?: string,
+    ) => {
+      if (!settings.showNotifications) return
 
-    try {
-      await chrome.runtime.sendMessage({
-        type: 'SHOW_NOTIFICATION',
-        notificationType,
+      try {
+        await chrome.runtime.sendMessage({
+          type: 'SHOW_NOTIFICATION',
+          notificationType,
+          message,
+          details,
+        })
+      } catch (error) {
+        console.error('Failed to show notification:', error)
+      }
+    },
+    [settings.showNotifications],
+  )
+
+  // Add system log (deduplicated)
+  const addSystemLog = useCallback(
+    (message: string, level: string = 'INFO') => {
+      const event: LogEvent = {
+        timestamp: new Date().toISOString(),
+        level,
+        logger_name: 'extension',
         message,
-        details,
-      })
-    } catch (error) {
-      console.error('Failed to show notification:', error)
-    }
-  }
+        event_type: 'LOG',
+      }
+      addLog(event)
+    },
+    [addLog],
+  )
 
   // Auto-scroll to bottom when new logs arrive
   useEffect(() => {
@@ -211,7 +238,7 @@ export const SidePanel = () => {
     return () => {
       newSocket.close()
     }
-  }, [settings.serverUrl, settings.autoReconnect])
+  }, [settings.serverUrl, settings.autoReconnect, addLog, showNotificationPopup, addSystemLog])
 
   // Get CDP endpoint from background script
   const getCdpEndpoint = async () => {
@@ -227,9 +254,9 @@ export const SidePanel = () => {
         tabId: tab.id,
       })
 
-      if (response.success) {
-        setCdpEndpoint(response.endpoint)
-        return response.endpoint
+      if (response.success && response.mode === 'extension-proxy') {
+        setCdpEndpoint(String(response.endpoint))
+        return String(response.endpoint)
       } else {
         throw new Error(response.error || 'Failed to get CDP endpoint')
       }
@@ -238,20 +265,6 @@ export const SidePanel = () => {
       addSystemLog(`Failed to get CDP endpoint: ${error}`, 'ERROR')
       return null
     }
-  }
-
-  const addSystemLog = (message: string, level: string = 'INFO') => {
-    const event: LogEvent = {
-      timestamp: new Date().toISOString(),
-      level,
-      logger_name: 'extension',
-      message,
-      event_type: 'LOG',
-    }
-    setLogs((prev) => {
-      const updated = [...prev, event]
-      return updated.length > settings.maxLogs ? updated.slice(-settings.maxLogs) : updated
-    })
   }
 
   const handleStartTask = async (task: string) => {
@@ -311,6 +324,27 @@ export const SidePanel = () => {
     setLogs([])
   }
 
+  const controlButtonsProps: ControlButtonsProps = useMemo(
+    () => ({
+      isRunning: taskStatus.is_running,
+      isPaused: taskStatus.is_paused || false,
+      connected,
+      onPause: handlePauseTask,
+      onResume: handleResumeTask,
+      onStop: handleStopTask,
+    }),
+    [taskStatus.is_running, taskStatus.is_paused, connected],
+  )
+
+  const taskStatusProps: TaskStatusProps = useMemo(
+    () => ({
+      isRunning: taskStatus.is_running,
+      currentTask: taskStatus.current_task,
+      isPaused: taskStatus.is_paused || false,
+    }),
+    [taskStatus.is_running, taskStatus.current_task, taskStatus.is_paused],
+  )
+
   return (
     <div className="sidepanel-container">
       {/* Header */}
@@ -355,21 +389,10 @@ export const SidePanel = () => {
       {/* Main Content */}
       <div className="sidepanel-content">
         {/* Task Status Banner */}
-        <TaskStatus
-          isRunning={taskStatus.is_running}
-          currentTask={taskStatus.current_task}
-          isPaused={taskStatus.is_paused}
-        />
+        <TaskStatus {...taskStatusProps} />
 
         {/* Control Buttons */}
-        <ControlButtons
-          isRunning={taskStatus.is_running}
-          isPaused={taskStatus.is_paused || false}
-          connected={connected}
-          onPause={handlePauseTask}
-          onResume={handleResumeTask}
-          onStop={handleStopTask}
-        />
+        <ControlButtons {...controlButtonsProps} />
 
         {/* Execution Logs */}
         <ExecutionLog logs={logs} onClear={clearLogs} devMode={settings.devMode} />
