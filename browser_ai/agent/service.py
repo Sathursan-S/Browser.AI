@@ -200,6 +200,11 @@ class Agent:
 
         self.action_descriptions = self.controller.registry.get_prompt_description()
 
+    # Public status helpers
+    def is_stopped(self) -> bool:
+        """Public accessor for stopped state (avoid direct _stopped access)."""
+        return bool(self._stopped)
+
     # endregion
 
     # region Setup Methods

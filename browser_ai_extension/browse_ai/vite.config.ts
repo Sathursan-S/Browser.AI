@@ -6,6 +6,8 @@ import manifest from './src/manifest'
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
+  const isProduction = mode === 'production'
+
   return {
     build: {
       emptyOutDir: true,
@@ -16,9 +18,15 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    server: isProduction
+      ? undefined
+      : {
+          port: 5173,
+          strictPort: true,
+          hmr: {
+            port: 5173,
+          },
+        },
     plugins: [crx({ manifest }), react()],
-    legacy: {
-      skipWebSocketTokenCheck: true,
-    },
   }
 })
