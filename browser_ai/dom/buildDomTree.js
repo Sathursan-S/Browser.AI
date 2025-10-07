@@ -44,18 +44,18 @@
 
         // Generate a color based on the index
         const colors = [
-            "#00FFFF", // Cyan (Arc Reactor Glow)
-            "#FFD700", // Gold (Iron Man Armor)
-            "#FF4500", // Orange Red (Repulsor Blast)
-            "#0000FF", // Blue (Jarvis Interface)
-            "#8B0000", // Dark Red (Iron Man Armor)
-            "#1E90FF", // Dodger Blue (Jarvis Highlights)
-            "#FF6347", // Tomato (Energy Glow)
-            "#00BFFF", // Deep Sky Blue (Jarvis Holograms)
-            "#FF8C00", // Dark Orange (Armor Highlights)
-            "#4682B4", // Steel Blue (Jarvis Background)
-            "#FF0000", // Red (Iron Man Core)
-            "#2E8B57", // Sea Green (Jarvis Accents)
+            "#D3D3D3", // Light Gray
+            "#A9A9A9", // Dark Gray
+            "#808080", // Gray
+            "#696969", // Dim Gray
+            "#C0C0C0", // Silver
+            "#BEBEBE", // Gray (X11)
+            "#DCDCDC", // Gainsboro
+            "#F5F5F5", // White Smoke
+            "#E0E0E0", // Platinum
+            "#B0B0B0", // Ash Gray
+            "#989898", // Spanish Gray
+            "#787878", // Shadow
         ];
         const colorIndex = index % colors.length;
         const baseColor = colors[colorIndex];

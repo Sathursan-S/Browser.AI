@@ -7,6 +7,7 @@ and control the browser via CDP.
 
 import asyncio
 import logging
+import threading
 from typing import Optional, Set
 
 from flask import Flask
@@ -21,6 +22,7 @@ from .protocol import (
     create_action_result,
     create_task_status,
 )
+from browser_ai.agent.views import AgentHistoryList
 
 logger = logging.getLogger(__name__)
 
@@ -28,16 +30,31 @@ logger = logging.getLogger(__name__)
 class ExtensionTaskManager:
     """Manages Browser.AI tasks initiated from Chrome extension"""
 
-    def __init__(self, config_manager: ConfigManager, event_adapter: EventAdapter):
+    def __init__(
+        self,
+        config_manager: ConfigManager,
+        event_adapter: EventAdapter,
+        socketio: Optional[SocketIO] = None,
+    ):
         self.config_manager = config_manager
         self.event_adapter = event_adapter
+        self.socketio = socketio
         self.current_agent = None
         self.current_task = None
         self.is_running = False
         self.is_paused = False
         self.task_future: Optional[asyncio.Future] = None
+        self.task_thread: Optional[threading.Thread] = None
+        self._stop_event = threading.Event()
+        self._finalized = False
+        self._finalize_lock = threading.Lock()
         self.browser = None
         self.cdp_endpoint = None
+
+    def register_thread(self, thread: threading.Thread) -> None:
+        """Register the thread running the agent so we can join/track it."""
+        self.task_thread = thread
+        self._stop_event.clear()
 
     async def start_task_with_cdp(
         self, task_description: str, cdp_endpoint: str
@@ -71,6 +88,7 @@ class ExtensionTaskManager:
                 retry_delay=self.config_manager.agent_config.retry_delay,
                 generate_gif=False,  # Disable GIF generation for extension
                 validate_output=self.config_manager.agent_config.validate_output,
+                register_done_callback=self._on_agent_done,
             )
 
             self.current_task = task_description
@@ -132,6 +150,7 @@ class ExtensionTaskManager:
                 retry_delay=self.config_manager.agent_config.retry_delay,
                 generate_gif=False,  # Disable GIF generation for extension
                 validate_output=self.config_manager.agent_config.validate_output,
+                register_done_callback=self._on_agent_done,
             )
 
             self.current_task = task_description
@@ -167,49 +186,164 @@ class ExtensionTaskManager:
             return
 
         try:
-            result = await self.current_agent.run(
+            self.is_running = True
+            self.is_paused = False
+            # Broadcast initial running status
+            try:
+                if self.socketio:
+                    self.socketio.emit(
+                        "status", self.get_status().to_dict(), namespace="/extension"
+                    )
+            except Exception:
+                logger.exception("Failed to emit initial running status")
+            history: AgentHistoryList = await self.current_agent.run(
                 max_steps=self.config_manager.agent_config.max_steps
             )
 
-            self.event_adapter.emit_custom_event(
-                EventType.AGENT_COMPLETE,
-                "Task completed",
-                LogLevel.INFO,
-                {"result": str(result)},
-            )
+            # Emit completion event (structured)
+            try:
+                self.event_adapter.emit_custom_event(
+                    EventType.AGENT_COMPLETE,
+                    "Task completed",
+                    LogLevel.INFO,
+                    {"result": str(history)},
+                )
+            except Exception:
+                logger.exception("Failed to emit AGENT_COMPLETE event")
 
+            # Finalize and cleanup based on history
+            await self._finalize_task(history)
         except Exception as e:
             logger.error(f"Task execution failed: {str(e)}", exc_info=True)
-            self.event_adapter.emit_custom_event(
-                EventType.AGENT_ERROR,
-                f"Task failed: {str(e)}",
-                LogLevel.ERROR,
-                {"error": str(e)},
-            )
-        finally:
-            self.is_running = False
-            self.is_paused = False  # Reset pause state when task finishes
-            # Use socketio.emit for background thread context
-            if hasattr(self, "socketio") and self.socketio:
+            try:
+                self.event_adapter.emit_custom_event(
+                    EventType.AGENT_ERROR,
+                    f"Task failed: {str(e)}",
+                    LogLevel.ERROR,
+                    {"error": str(e)},
+                )
+            except Exception:
+                logger.exception("Failed to emit AGENT_ERROR event")
+
+            # Ensure finalize is called for cleanup
+            try:
+                await self._finalize_task(None)
+            except Exception:
+                logger.exception("Error during finalize after exception")
+
+    async def _finalize_task(self, history: Optional[AgentHistoryList]):
+        """Centralized cleanup after agent finishes or errors.
+
+        Emits structured task_result and final status to clients and performs cleanup.
+        """
+        # Ensure status flags are cleared before emitting
+        self.is_running = False
+        self.is_paused = False
+
+        # Prevent double-finalize
+        with self._finalize_lock:
+            if self._finalized:
+                self.socketio.emit(
+                    "status", self.get_status().to_dict(), namespace="/extension"
+                )
+                logger.debug("_finalize_task called but already finalized; skipping")
+                return
+            self._finalized = True
+
+        # Determine success
+        success = False
+        if history is not None:
+            try:
+                success = getattr(history, "is_done", lambda: False)()
+            except Exception:
+                success = False
+
+        # Emit task_result to clients
+        try:
+            payload = {
+                "task": self.current_task,
+                "success": bool(success),
+                "history": str(history) if history is not None else None,
+            }
+            if self.socketio:
+                self.socketio.emit("task_result", payload, namespace="/extension")
                 self.socketio.emit(
                     "status", self.get_status().to_dict(), namespace="/extension"
                 )
             else:
-                # Fallback: try global SocketIO instance if available
-                try:
-                    from flask_socketio import SocketIO
+                emit("task_result", payload)
+                emit("status", self.get_status().to_dict())
+        except Exception:
+            logger.exception("Failed to emit final task_result/status")
 
-                    SocketIO.emit(
-                        "status", self.get_status().to_dict(), namespace="/extension"
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to emit status update: {e}")
-            if self.browser:
+        # Also publish via event adapter for internal logging
+        try:
+            if success:
+                self.event_adapter.emit_custom_event(
+                    EventType.AGENT_COMPLETE,
+                    "Task completed successfully",
+                    LogLevel.INFO,
+                    {"task": self.current_task},
+                )
+            else:
+                self.event_adapter.emit_custom_event(
+                    EventType.AGENT_ERROR,
+                    "Task ended without success",
+                    LogLevel.WARNING,
+                    {"task": self.current_task},
+                )
+        except Exception:
+            logger.exception("Failed to emit final event via event_adapter")
+
+        # Ensure browser closed (best-effort)
+        if self.browser:
+            try:
                 await self.browser.close()
-            self.current_agent = None
-            self.current_task = None
-            self.browser = None
-            self.cdp_endpoint = None
+            except Exception:
+                logger.exception("Error closing browser during finalize")
+
+        # mark stop event and clear thread reference
+        try:
+            self._stop_event.set()
+        except Exception:
+            pass
+
+        self.current_agent = None
+        self.current_task = None
+        self.task_thread = None
+
+    def _on_agent_done(self, history: AgentHistoryList):
+        """Callback passed to Agent to notify manager that the run finished.
+
+        This callback may be invoked inside the Agent's async context. We schedule
+        the async finalize on the running loop when possible, otherwise run it in
+        a background thread.
+        """
+        try:
+            loop = None
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                # no running loop in this thread
+                loop = None
+
+            if loop and loop.is_running():
+                # schedule coroutine in the current loop
+                asyncio.ensure_future(self._finalize_task(history))
+            else:
+                # schedule in a new thread with its own loop
+                def _run():
+                    try:
+                        asyncio.run(self._finalize_task(history))
+                    except Exception:
+                        logger.exception("Unhandled exception in _on_agent_done runner")
+
+                t = threading.Thread(target=_run, daemon=True)
+                # register thread so lifecycle tracking remains consistent
+                self.register_thread(t)
+                t.start()
+        except Exception:
+            logger.exception("Error handling agent done callback")
 
     def stop_task(self) -> ActionResult:
         """Stop the current task"""
@@ -222,6 +356,16 @@ class ExtensionTaskManager:
             self.event_adapter.emit_custom_event(
                 EventType.AGENT_STOP, "Task stopped by user", LogLevel.INFO
             )
+            # Attempt a short join of the background thread to allow it to finish cleanup
+            try:
+                if self.task_thread and self.task_thread.is_alive():
+                    self.task_thread.join(timeout=2)
+                    if self.task_thread.is_alive():
+                        logger.warning(
+                            "Task thread did not exit after stop() within timeout"
+                        )
+            except Exception:
+                logger.exception("Error while joining task thread after stop")
             return create_action_result(True, message="Task stopped successfully")
         except Exception as e:
             return create_action_result(False, error=str(e))
@@ -279,7 +423,10 @@ class ExtensionWebSocketHandler:
         self.socketio = socketio
         self.config_manager = config_manager
         self.event_adapter = event_adapter
-        self.task_manager = ExtensionTaskManager(config_manager, event_adapter)
+        # Pass socketio into the task manager so it can emit from background threads
+        self.task_manager = ExtensionTaskManager(
+            config_manager, event_adapter, socketio
+        )
         self.connected_clients: Set[str] = set()
 
         # Setup WebSocket event handlers
@@ -344,6 +491,8 @@ class ExtensionWebSocketHandler:
 
                 task_thread = threading.Thread(target=run_task)
                 task_thread.daemon = True
+                # register thread so manager can join/track it
+                self.task_manager.register_thread(task_thread)
                 task_thread.start()
                 emit(
                     "task_started", {"message": "Task is starting in extension mode..."}
@@ -370,6 +519,8 @@ class ExtensionWebSocketHandler:
 
             task_thread = threading.Thread(target=run_task)
             task_thread.daemon = True
+            # register thread so manager can join/track it
+            self.task_manager.register_thread(task_thread)
             task_thread.start()
 
             emit("task_started", {"message": "Task is starting..."})
