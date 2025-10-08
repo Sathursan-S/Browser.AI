@@ -206,7 +206,9 @@ export interface ServerToClientEvents {
   log_event: (event: LogEvent) => void
   task_started: (data: TaskStartedPayload) => void
   task_action_result: (result: ActionResult) => void
+  task_result: (result: { task: string; success: boolean; history?: string; agent_id?: string }) => void
   error: (error: ErrorPayload) => void
+  structured_event: (event: any) => void // New structured event system
   connect: () => void
   disconnect: () => void
 }
