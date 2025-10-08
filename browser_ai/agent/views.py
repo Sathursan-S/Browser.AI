@@ -35,6 +35,7 @@ class ActionResult(BaseModel):
 	requires_user_action: Optional[bool] = False  # whether the action requires user intervention
 	user_action_type: Optional[str] = None  # type of user action needed (e.g., "captcha", "verification")
 	user_action_message: Optional[str] = None  # message to display to user
+	user_input_request: Optional[dict] = None  # detailed information about user input request (for questions/help)
 
 
 class AgentBrain(BaseModel):

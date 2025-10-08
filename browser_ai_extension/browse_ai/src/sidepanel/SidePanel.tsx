@@ -3,6 +3,7 @@ import { io, Socket } from 'socket.io-client'
 
 import './SidePanel.css'
 import { ChatInput } from './components/ChatInput'
+import { ConversationMode } from './components/ConversationMode'
 import { ExecutionLog, LogEvent } from './components/ExecutionLog'
 import { ControlButtons, ControlButtonsProps } from './components/ControlButtons'
 import { TaskStatus, TaskStatusProps } from './components/TaskStatus'
@@ -22,6 +23,12 @@ import {
   loadCdpEndpoint,
   saveCdpEndpoint,
   onTaskStatusChanged,
+  loadConversationMessages,
+  saveConversationMessages,
+  loadConversationIntent,
+  saveConversationIntent,
+  ConversationMessage,
+  ConversationIntent,
 } from '../utils/state'
 
 export const SidePanel = () => {
@@ -37,6 +44,9 @@ export const SidePanel = () => {
   const [settings, setSettings] = useState<ExtensionSettings>(DEFAULT_SETTINGS)
   const [cdpEndpoint, setCdpEndpoint] = useState('')
   const [taskResult, setTaskResult] = useState<string | null>(null)
+  const [conversationMode, setConversationMode] = useState(true) // Enable conversation mode by default
+  const [conversationMessages, setConversationMessages] = useState<ConversationMessage[]>([])
+  const [conversationIntent, setConversationIntent] = useState<ConversationIntent | null>(null)
   const logsEndRef = useRef<HTMLDivElement>(null)
   const socketRef = useRef<Socket | null>(null)
 
@@ -71,6 +81,19 @@ export const SidePanel = () => {
       }
     })
 
+    // Load persisted conversation state
+    loadConversationMessages().then((messages) => {
+      if (isMounted) {
+        setConversationMessages(messages)
+      }
+    })
+
+    loadConversationIntent().then((intent) => {
+      if (isMounted) {
+        setConversationIntent(intent)
+      }
+    })
+
     // Listen for task status changes from other extension pages
     const handleTaskStatusChange = (newStatus: ProtocolTaskStatus) => {
       if (isMounted) {
@@ -97,6 +120,18 @@ export const SidePanel = () => {
       saveCdpEndpoint(cdpEndpoint)
     }
   }, [cdpEndpoint])
+
+  // Persist conversation messages when they change
+  useEffect(() => {
+    if (conversationMessages.length > 0) {
+      saveConversationMessages(conversationMessages)
+    }
+  }, [conversationMessages])
+
+  // Persist conversation intent when it changes
+  useEffect(() => {
+    saveConversationIntent(conversationIntent)
+  }, [conversationIntent])
 
   // Shared helper for bounded log append
   const appendBoundedLog = useCallback(
@@ -432,6 +467,14 @@ export const SidePanel = () => {
             <h1>Browser.AI</h1>
           </div>
           <div className="header-actions">
+            <button 
+              className={`mode-toggle ${conversationMode ? 'active' : ''}`}
+              onClick={() => setConversationMode(!conversationMode)}
+              title={conversationMode ? "Switch to Direct Mode" : "Switch to Conversation Mode"}
+              style={{ paddingLeft: '6px', paddingRight: '6px' }}
+            >
+              {conversationMode ? '💬' : '⚡'}
+            </button>
             <button className="settings-button" onClick={openOptionsPage} title="Settings">
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                 <path
@@ -456,31 +499,48 @@ export const SidePanel = () => {
 
       {/* Main Content */}
       <div className="sidepanel-content">
-        {/* Task Status Banner */}
-        <TaskStatus {...taskStatusProps} />
+        {conversationMode ? (
+          /* Conversation Mode - Chat with AI to clarify intent */
+          <ConversationMode 
+            socket={socket}
+            connected={connected}
+            onStartTask={handleStartTask}
+            cdpEndpoint={cdpEndpoint}
+            messages={conversationMessages}
+            setMessages={setConversationMessages}
+            intent={conversationIntent}
+            setIntent={setConversationIntent}
+          />
+        ) : (
+          /* Direct Mode - Traditional logs and controls */
+          <>
+            {/* Task Status Banner */}
+            <TaskStatus {...taskStatusProps} />
 
-        {/* Control Buttons */}
-        <ControlButtons {...controlButtonsProps} />
+            {/* Control Buttons */}
+            <ControlButtons {...controlButtonsProps} />
 
-        {/* Execution Logs */}
-        <ExecutionLog logs={logs} onClear={clearLogs} devMode={settings.devMode} />
+            {/* Execution Logs */}
+            <ExecutionLog logs={logs} onClear={clearLogs} devMode={settings.devMode} />
 
-        {/* Task Result */}
-        {taskResult && (
-          <div className="task-result">
-            <h3>Task Result</h3>
-            <p>{taskResult}</p>
-          </div>
+            {/* Task Result */}
+            {taskResult && (
+              <div className="task-result">
+                <h3>Task Result</h3>
+                <p>{taskResult}</p>
+              </div>
+            )}
+            
+            {/* Chat Input at Bottom for Direct Mode */}
+            <div className="sidepanel-footer">
+              <ChatInput
+                onSendMessage={handleStartTask}
+                disabled={taskStatus.is_running}
+                placeholder="What would you like me to automate? (e.g., 'Search for Python tutorials')"
+              />
+            </div>
+          </>
         )}
-      </div>
-
-      {/* Chat Input at Bottom */}
-      <div className="sidepanel-footer">
-        <ChatInput
-          onSendMessage={handleStartTask}
-          disabled={taskStatus.is_running}
-          placeholder="What would you like me to automate? (e.g., 'Search for Python tutorials')"
-        />
       </div>
     </div>
   )

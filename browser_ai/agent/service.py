@@ -189,6 +189,11 @@ class Agent:
         self.max_failures = max_failures
         self.retry_delay = retry_delay
         self.validate_output = validate_output
+        
+        # Auto-inject location detection for shopping tasks
+        if initial_actions is None:
+            initial_actions = self._auto_detect_shopping_actions()
+        
         self.initial_actions = (
             self._convert_initial_actions(initial_actions) if initial_actions else None
         )
@@ -1345,6 +1350,38 @@ class Agent:
     # endregion
 
     # region Utility Methods
+    def _auto_detect_shopping_actions(self) -> Optional[List[Dict[str, Dict[str, Any]]]]:
+        """
+        Auto-detect if task is shopping-related and inject location detection actions.
+        Returns initial actions if shopping keywords detected, None otherwise.
+        """
+        shopping_keywords = [
+            'buy', 'purchase', 'shop', 'shopping', 'order', 'get me', 'find me',
+            'price', 'cost', 'product', 'item', 'best deal', 'cheapest',
+            'laptop', 'phone', 'headphones', 'camera', 'watch', 'shoes',
+            'clothes', 'book', 'tablet', 'monitor', 'keyboard', 'mouse',
+            'ecommerce', 'e-commerce', 'online store', 'marketplace'
+        ]
+        
+        task_lower = self.task.lower()
+        
+        # Check if any shopping keyword is in the task
+        is_shopping_task = any(keyword in task_lower for keyword in shopping_keywords)
+        
+        if is_shopping_task:
+            logger.info("🛍️ Shopping task detected - injecting location detection and website research")
+            # Return initial actions: detect_location first, then find_best_website
+            # The agent will automatically execute these before asking the LLM
+            return [
+                {"detect_location": {}},
+                {"find_best_website": {
+                    "purpose": self.task,
+                    "category": "shopping"
+                }}
+            ]
+        
+        return None
+    
     def _convert_initial_actions(
         self, actions: List[Dict[str, Dict[str, Any]]]
     ) -> List[ActionModel]:

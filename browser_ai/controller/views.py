@@ -14,7 +14,17 @@ class SearchYouTubeAction(BaseModel):
 
 class SearchEcommerceAction(BaseModel):
 	query: str
-	site: Optional[str] = None  # e.g., 'daraz.lk', 'ikman.lk', 'glomark.lk'
+	site: Optional[str] = None  # e.g., 'daraz.lk', 'ikman.lk', 'glomark.lk', 'amazon.com', 'ebay.com', etc.
+
+
+class FindBestWebsiteAction(BaseModel):
+	purpose: str  # What you want to do (e.g., "buy gaming laptop", "download python tutorial", "find vintage records")
+	category: str  # Category: "shopping", "download", "information", "service", or "other"
+
+
+class DetectLocationAction(BaseModel):
+	"""Action to detect user's geographic location for localized shopping"""
+	pass  # No parameters needed
 
 
 class GoToUrlAction(BaseModel):
@@ -58,6 +68,18 @@ class ExtractPageContentAction(BaseModel):
 class RequestUserHelpAction(BaseModel):
 	message: str  # Clear message explaining what the user needs to do
 	reason: str  # Type of intervention: "captcha", "authentication", "payment", "verification", "personal_data", "complex_form"
+
+
+class AskUserQuestionAction(BaseModel):
+	"""
+	Action for agent to ask clarifying questions during task execution.
+	Different from request_user_help which is for technical interventions (CAPTCHA, login, etc.)
+	This is for when the agent needs more information to complete the task properly.
+	"""
+	question: str  # The specific question to ask the user
+	context: str  # Why this information is needed (helps user understand)
+	options: list[str] = []  # Optional: Suggested answers/options for the user to choose from
+
 	
 class NoParamsAction(BaseModel):
 	"""

@@ -11,8 +11,11 @@ from browser_ai.agent.views import ActionModel, ActionResult
 from browser_ai.browser.context import BrowserContext
 from browser_ai.controller.registry.service import Registry
 from browser_ai.controller.views import (
+	AskUserQuestionAction,
 	ClickElementAction,
 	DoneAction,
+	DetectLocationAction,
+	FindBestWebsiteAction,
 	GoToUrlAction,
 	InputTextAction,
 	NoParamsAction,
@@ -25,6 +28,7 @@ from browser_ai.controller.views import (
 	SendKeysAction,
 	SwitchTabAction,
 )
+from browser_ai.location_service import LocationDetector
 from browser_ai.utils import time_execution_async, time_execution_sync
 
 logger = logging.getLogger(__name__)
@@ -40,6 +44,7 @@ class Controller:
 		self.exclude_actions = exclude_actions
 		self.output_model = output_model
 		self.registry = Registry(exclude_actions)
+		self.location_detector = LocationDetector()  # Initialize location detector
 		self._register_default_actions()
 
 	def _register_default_actions(self):
@@ -84,30 +89,138 @@ class Controller:
 			return ActionResult(extracted_content=msg, include_in_memory=True)
 
 		@self.registry.action(
-			'Search for products on popular e-commerce sites. Specify site for targeted search (daraz.lk, ikman.lk, glomark.lk) or leave blank for Daraz (most popular in Sri Lanka).',
+			'Find the best website for a specific purpose (shopping, downloading, services, etc.). Use this FIRST before attempting to shop, download, or access specific content. Returns suggested websites to try.',
+			param_model=FindBestWebsiteAction,
+		)
+		async def find_best_website(params: FindBestWebsiteAction, browser: BrowserContext):
+			page = await browser.get_current_page()
+			
+			# Check if location is detected for shopping tasks
+			location_context = ""
+			if params.category.lower() == 'shopping' and self.location_detector.has_detected():
+				location_context = f" in {self.location_detector.get_location().country}" if self.location_detector.get_location() else ""
+			
+			# Construct an intelligent search query to find the best websites
+			if params.category.lower() == 'shopping':
+				search_query = f'best website to buy {params.purpose} online{location_context}'
+			elif params.category.lower() == 'download':
+				search_query = f'best website to download {params.purpose}'
+			elif params.category.lower() == 'service':
+				search_query = f'best website for {params.purpose}'
+			else:
+				search_query = f'best website for {params.purpose}'
+			
+			# Use Google to research the best websites
+			encoded_query = search_query.replace(' ', '+')
+			await page.goto(f'https://www.google.com/search?q={encoded_query}')
+			await page.wait_for_load_state()
+			
+			# Include location-specific recommendations if available
+			location_msg = ""
+			if params.category.lower() == 'shopping' and self.location_detector.has_detected():
+				location_msg = f"\n{self.location_detector.get_ecommerce_context()}"
+			
+			msg = f'🔎  Researching best websites for: {params.purpose} (category: {params.category}). Review the search results to identify top websites, then navigate to the most appropriate one.{location_msg}'
+			logger.info(msg)
+			return ActionResult(
+				extracted_content=msg,
+				include_in_memory=True
+			)
+
+		@self.registry.action(
+			'Detect user location (country, currency, timezone) to provide personalized shopping experience. Use this BEFORE shopping tasks to get region-specific websites and currency information.',
+			param_model=DetectLocationAction,
+		)
+		async def detect_location(params: DetectLocationAction, browser: BrowserContext):
+			"""Detect user's geographic location for personalized shopping"""
+			location_info = await self.location_detector.detect_location_from_browser(browser)
+			
+			if location_info:
+				context_msg = self.location_detector.get_full_context()
+				msg = f'📍 Location Detected!\n{context_msg}\n\nYou can now use this information for personalized shopping and currency-aware searches.'
+				logger.info(f"Location detected: {location_info.country}")
+			else:
+				msg = '⚠️ Could not detect location. Defaulting to United States (USD).'
+				logger.warning("Location detection failed, using US default")
+			
+			return ActionResult(
+				extracted_content=msg,
+				include_in_memory=True
+			)
+
+		@self.registry.action(
+			'Search for products on e-commerce websites. You can specify any e-commerce site (amazon.com, ebay.com, daraz.lk, ikman.lk, glomark.lk, etc.) or leave blank to use location-based default. IMPORTANT: Use detect_location and find_best_website first for shopping tasks.',
 			param_model=SearchEcommerceAction,
 		)
 		async def search_ecommerce(params: SearchEcommerceAction, browser: BrowserContext):
 			page = await browser.get_current_page()
 			search_query = params.query.replace(' ', '+')
 			
-			# Default to Daraz.lk if no site specified
-			site = params.site or 'daraz.lk'
-			
-			# Handle different e-commerce sites
-			if 'daraz' in site.lower():
-				search_url = f'https://www.daraz.lk/search/?q={search_query}'
-			elif 'ikman' in site.lower():
-				search_url = f'https://ikman.lk/search?q={search_query}'
-			elif 'glomark' in site.lower():
-				search_url = f'https://glomark.lk/search?q={search_query}'
+			# If site is specified, use it; otherwise use location-based default
+			if params.site:
+				site = params.site.lower()
+				
+				# Build search URL based on known site patterns
+				if 'daraz.lk' in site or site == 'daraz':
+					search_url = f'https://www.daraz.lk/catalog/?q={search_query}'
+				elif 'ikman.lk' in site or site == 'ikman':
+					search_url = f'https://ikman.lk/en/ads?query={search_query}'
+				elif 'glomark.lk' in site or site == 'glomark':
+					search_url = f'https://glomark.lk/search?q={search_query}'
+				elif 'amazon.com' in site or site == 'amazon':
+					search_url = f'https://www.amazon.com/s?k={search_query}'
+				elif 'ebay.com' in site or site == 'ebay':
+					search_url = f'https://www.ebay.com/sch/i.html?_nkw={search_query}'
+				elif 'alibaba.com' in site or site == 'alibaba':
+					search_url = f'https://www.alibaba.com/trade/search?SearchText={search_query}'
+				elif 'aliexpress.com' in site or site == 'aliexpress':
+					search_url = f'https://www.aliexpress.com/wholesale?SearchText={search_query}'
+				else:
+					# For unknown sites, try to construct a generic search URL
+					# Remove common TLDs and use as base domain
+					base_site = site.replace('www.', '').split('/')[0]
+					search_url = f'https://{base_site}/search?q={search_query}'
 			else:
-				# Fallback to Daraz
-				search_url = f'https://www.daraz.lk/search/?q={search_query}'
+				# Use location-based default site
+				if self.location_detector.has_detected() and self.location_detector.get_location():
+					location = self.location_detector.get_location()
+					# Use the first preferred site for this location
+					preferred_site = location.preferred_ecommerce_sites[0] if location.preferred_ecommerce_sites else 'amazon.com'
+					
+					# Build URL for preferred site
+					if 'daraz' in preferred_site:
+						search_url = f'https://{preferred_site}/catalog/?q={search_query}'
+						site = preferred_site
+					elif 'amazon' in preferred_site:
+						search_url = f'https://{preferred_site}/s?k={search_query}'
+						site = preferred_site
+					elif 'ebay' in preferred_site:
+						search_url = f'https://{preferred_site}/sch/i.html?_nkw={search_query}'
+						site = preferred_site
+					elif 'lazada' in preferred_site:
+						search_url = f'https://{preferred_site}/catalog/?q={search_query}'
+						site = preferred_site
+					elif 'shopee' in preferred_site:
+						search_url = f'https://{preferred_site}/search?keyword={search_query}'
+						site = preferred_site
+					else:
+						# Generic fallback
+						search_url = f'https://{preferred_site}/search?q={search_query}'
+						site = preferred_site
+				else:
+					# Absolute fallback - use Amazon
+					search_url = f'https://www.amazon.com/s?k={search_query}'
+					site = 'amazon.com'
 			
 			await page.goto(search_url)
 			await page.wait_for_load_state()
-			msg = f'🛒  Searched for "{params.query}" on {site}'
+			
+			# Add currency context if location is detected
+			currency_info = ""
+			if self.location_detector.has_detected() and self.location_detector.get_location():
+				currency_info = f" ({self.location_detector.get_currency_context()})"
+			
+			msg = f'🛒  Searched for "{params.query}" on {site}{currency_info}'
 			logger.info(msg)
 			return ActionResult(extracted_content=msg, include_in_memory=True)
 
@@ -566,8 +679,36 @@ class Controller:
 				extracted_content=f"{msg} - Please check the browser window at {current_url}", 
 				include_in_memory=True,
 				requires_user_action=True,
-				user_action_type=params.reason,
-				user_action_message=params.message
+				user_input_request={
+					'type': 'intervention',
+					'reason': params.reason,
+					'message': params.message,
+					'url': current_url
+				}
+			)
+
+		@self.registry.action(
+			'Ask the user a clarifying question when you need more information to complete the task properly. Use this when: you are unsure about user preferences, need to choose between multiple options, or require specific details not provided in the original task. This enables interactive, conversational automation.',
+			param_model=AskUserQuestionAction,
+		)
+		async def ask_user_question(params: AskUserQuestionAction, browser: BrowserContext):
+			msg = f'❓ Agent question: {params.question}'
+			logger.info(msg)
+			logger.info(f'Context: {params.context}')
+			if params.options:
+				logger.info(f'Suggested options: {", ".join(params.options)}')
+			
+			# This will create a special result that signals the web interface to pause and wait for user answer
+			return ActionResult(
+				extracted_content=f"{msg} (Context: {params.context})",
+				include_in_memory=True,
+				requires_user_action=True,
+				user_input_request={
+					'type': 'question',
+					'question': params.question,
+					'context': params.context,
+					'options': params.options
+				}
 			)
 
 	def action(self, description: str, **kwargs):

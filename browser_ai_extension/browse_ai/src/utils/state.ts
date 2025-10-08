@@ -11,6 +11,8 @@ const STATE_KEYS = {
   TASK_STATUS: 'taskStatus',
   CDP_ENDPOINT: 'cdpEndpoint',
   LAST_TASK: 'lastTask',
+  CONVERSATION_MESSAGES: 'conversationMessages',
+  CONVERSATION_INTENT: 'conversationIntent',
 } as const
 
 /**
@@ -156,4 +158,114 @@ export const onTaskStatusChanged = (callback: (status: TaskStatus) => void): (()
   return () => {
     chrome.storage.onChanged.removeListener(listener)
   }
+}
+
+/**
+ * Message type for conversation persistence
+ */
+export interface ConversationMessage {
+  role: 'user' | 'assistant'
+  content: string
+  timestamp?: string
+}
+
+/**
+ * Intent type for conversation persistence
+ */
+export interface ConversationIntent {
+  task_description: string
+  is_ready: boolean
+  confidence: number
+}
+
+/**
+ * Load conversation messages from persistent storage
+ */
+export const loadConversationMessages = async (): Promise<ConversationMessage[]> => {
+  return new Promise((resolve) => {
+    chrome.storage.local.get([STATE_KEYS.CONVERSATION_MESSAGES], (result) => {
+      if (chrome.runtime.lastError) {
+        console.error('[State] Failed to load conversation messages:', chrome.runtime.lastError)
+        resolve([])
+      } else if (result[STATE_KEYS.CONVERSATION_MESSAGES]) {
+        console.log('[State] Loaded conversation messages:', result[STATE_KEYS.CONVERSATION_MESSAGES])
+        resolve(result[STATE_KEYS.CONVERSATION_MESSAGES])
+      } else {
+        resolve([])
+      }
+    })
+  })
+}
+
+/**
+ * Save conversation messages to persistent storage
+ */
+export const saveConversationMessages = async (messages: ConversationMessage[]): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.set({ [STATE_KEYS.CONVERSATION_MESSAGES]: messages }, () => {
+      if (chrome.runtime.lastError) {
+        console.error('[State] Failed to save conversation messages:', chrome.runtime.lastError)
+        reject(chrome.runtime.lastError)
+      } else {
+        console.log('[State] Saved conversation messages:', messages.length, 'messages')
+        resolve()
+      }
+    })
+  })
+}
+
+/**
+ * Load conversation intent from persistent storage
+ */
+export const loadConversationIntent = async (): Promise<ConversationIntent | null> => {
+  return new Promise((resolve) => {
+    chrome.storage.local.get([STATE_KEYS.CONVERSATION_INTENT], (result) => {
+      if (chrome.runtime.lastError) {
+        console.error('[State] Failed to load conversation intent:', chrome.runtime.lastError)
+        resolve(null)
+      } else if (result[STATE_KEYS.CONVERSATION_INTENT]) {
+        console.log('[State] Loaded conversation intent:', result[STATE_KEYS.CONVERSATION_INTENT])
+        resolve(result[STATE_KEYS.CONVERSATION_INTENT])
+      } else {
+        resolve(null)
+      }
+    })
+  })
+}
+
+/**
+ * Save conversation intent to persistent storage
+ */
+export const saveConversationIntent = async (intent: ConversationIntent | null): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.set({ [STATE_KEYS.CONVERSATION_INTENT]: intent }, () => {
+      if (chrome.runtime.lastError) {
+        console.error('[State] Failed to save conversation intent:', chrome.runtime.lastError)
+        reject(chrome.runtime.lastError)
+      } else {
+        console.log('[State] Saved conversation intent:', intent)
+        resolve()
+      }
+    })
+  })
+}
+
+/**
+ * Clear conversation state
+ */
+export const clearConversationState = async (): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.remove(
+      [STATE_KEYS.CONVERSATION_MESSAGES, STATE_KEYS.CONVERSATION_INTENT],
+      () => {
+        if (chrome.runtime.lastError) {
+          console.error('[State] Failed to clear conversation state:', chrome.runtime.lastError)
+          reject(chrome.runtime.lastError)
+        } else {
+          console.log('[State] Cleared conversation state')
+          resolve()
+        }
+      }
+    )
+  })
 }
