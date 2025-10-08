@@ -29,6 +29,7 @@ from PIL import Image, ImageDraw, ImageFont
 from pydantic import BaseModel, ValidationError
 
 from browser_ai.agent.message_manager.service import MessageManager
+from browser_ai.llmops import OpikConfig, OpikLLMOps
 from browser_ai.agent.prompts import AgentMessagePrompt, PlannerPrompt, SystemPrompt
 from browser_ai.agent.views import (
 	ActionResult,
@@ -99,6 +100,9 @@ class Agent:
 		page_extraction_llm: Optional[BaseChatModel] = None,
 		planner_llm: Optional[BaseChatModel] = None,
 		planner_interval: int = 1,  # Run planner every N steps
+		# Opik LLMOps integration
+		opik_config: Optional[OpikConfig] = None,
+		enable_opik_llmops: bool = True,
 	):
 		self.agent_id = str(uuid.uuid4())  # unique identifier for the agent
 		self.sensitive_data = sensitive_data
@@ -190,6 +194,20 @@ class Agent:
 		self._stopped = False
 
 		self.action_descriptions = self.controller.registry.get_prompt_description()
+		
+		# Initialize Opik LLMOps integration
+		if enable_opik_llmops:
+			if opik_config is None:
+				opik_config = OpikConfig(
+					project_name=f"browser-ai-{self.task[:30]}",
+					enabled=True,
+					tags=["browser-ai", "agent", getattr(llm, 'model_name', 'unknown-model')]
+				)
+			self.opik_llmops = OpikLLMOps(opik_config)
+			logger.info("Opik LLMOps integration enabled")
+		else:
+			self.opik_llmops = None
+			logger.info("Opik LLMOps integration disabled")
 
 	def _set_version_and_source(self) -> None:
 		try:
@@ -264,6 +282,16 @@ class Agent:
 	@time_execution_async('--step')
 	async def step(self, step_info: Optional[AgentStepInfo] = None) -> None:
 		"""Execute one step of the task"""
+		
+		# Apply Opik tracing if enabled
+		if self.opik_llmops:
+			decorated_step = self.opik_llmops.trace_action_execution(self._step_impl)
+			return await decorated_step(self, step_info)
+		else:
+			return await self._step_impl(step_info)
+	
+	async def _step_impl(self, step_info: Optional[AgentStepInfo] = None) -> None:
+		"""Internal implementation of step method"""
 		logger.info(f'📍 Step {self.n_steps}')
 		state = None
 		model_output = None
@@ -537,6 +565,16 @@ class Agent:
 	@observe(name='agent.run', ignore_output=True)
 	async def run(self, max_steps: int = 100) -> AgentHistoryList:
 		"""Execute the task with maximum number of steps"""
+		
+		# Apply Opik tracing if enabled
+		if self.opik_llmops:
+			decorated_run = self.opik_llmops.trace_agent_execution(self._run_impl)
+			return await decorated_run(self, max_steps)
+		else:
+			return await self._run_impl(max_steps)
+	
+	async def _run_impl(self, max_steps: int = 100) -> AgentHistoryList:
+		"""Internal implementation of run method"""
 		try:
 			self._log_agent_run()
 

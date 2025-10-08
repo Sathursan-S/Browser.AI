@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from browser_ai.agent.views import ActionModel, ActionResult
 from browser_ai.browser.context import BrowserContext
 from browser_ai.controller.registry.service import Registry
+from browser_ai.llmops import OpikConfig, OpikLLMOps
 from browser_ai.controller.views import (
 	ClickElementAction,
 	DoneAction,
@@ -36,10 +37,12 @@ class Controller:
 		self,
 		exclude_actions: list[str] = [],
 		output_model: Optional[Type[BaseModel]] = None,
+		opik_llmops: Optional[OpikLLMOps] = None,
 	):
 		self.exclude_actions = exclude_actions
 		self.output_model = output_model
 		self.registry = Registry(exclude_actions)
+		self.opik_llmops = opik_llmops
 		self._register_default_actions()
 
 	def _register_default_actions(self):
