@@ -44,12 +44,16 @@ export async function saveSettings(settings: ExtensionSettings): Promise<void> {
 /**
  * Listen for settings changes
  */
-export function onSettingsChanged(callback: (settings: ExtensionSettings) => void): void {
-  chrome.storage.onChanged.addListener((changes: any, area: string) => {
+export function onSettingsChanged(callback: (settings: ExtensionSettings) => void): () => void {
+  const listener = (changes: any, area: string) => {
     if (area === 'sync' && changes.settings) {
       callback(changes.settings.newValue)
     }
-  })
+  }
+  chrome.storage.onChanged.addListener(listener)
+  return () => {
+    chrome.storage.onChanged.removeListener(listener)
+  }
 }
 
 /**

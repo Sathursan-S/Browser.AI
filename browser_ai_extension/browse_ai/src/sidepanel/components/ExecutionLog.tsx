@@ -156,7 +156,15 @@ export const ExecutionLog = ({ logs, onClear, devMode = false }: ExecutionLogPro
     }
 
     if (msg.includes('task completed') || msg.includes('✅')) {
-      return '✅ Task completed successfully!'
+      if (msg.includes('agenthistorylist')) {
+        console.log('Agent history list:', log)
+        return (
+          '✅ Task completed successfully! \n Result: ' +
+          log.message
+        )
+      } else {
+        return '✅ Task completed successfully!'
+      }
     }
 
     if (msg.includes('task failed') || msg.includes('❌')) {

@@ -298,19 +298,18 @@ class ExtensionTaskManager:
         # Ensure browser closed (best-effort)
         if self.browser:
             try:
-                await self.browser.close()
+                self.browser.close()
             except Exception:
-                logger.exception("Error closing browser during finalize")
+                logger.exception("Failed to close browser during finalize")
 
-        # mark stop event and clear thread reference
-        try:
-            self._stop_event.set()
-        except Exception:
-            pass
-
-        self.current_agent = None
+        # Clear current task and agent
         self.current_task = None
-        self.task_thread = None
+        self.current_agent = None
+
+        # Clear finalized flag for next task
+        self._finalized = False
+
+        logger.info("Task finalized")
 
     def _on_agent_done(self, history: AgentHistoryList):
         """Callback passed to Agent to notify manager that the run finished.
