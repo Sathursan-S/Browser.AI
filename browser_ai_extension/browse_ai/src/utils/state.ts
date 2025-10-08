@@ -138,14 +138,22 @@ export const clearExtensionState = async (): Promise<void> => {
 /**
  * Listen for changes to task status from other extension pages
  */
-export const onTaskStatusChanged = (callback: (status: TaskStatus) => void): void => {
-  chrome.storage.onChanged.addListener((changes, areaName) => {
+export const onTaskStatusChanged = (callback: (status: TaskStatus) => void): (() => void) => {
+  const listener = (changes: any, areaName: string) => {
+    console.log('[State] Storage change detected:', changes, areaName)
     if (areaName === 'local' && changes[STATE_KEYS.TASK_STATUS]) {
       const newStatus = changes[STATE_KEYS.TASK_STATUS].newValue
-      if (newStatus) {
+      if (
+        newStatus &&
+        newStatus !== changes[STATE_KEYS.TASK_STATUS].oldValue
+      ) {
         console.log('[State] Task status changed:', newStatus)
         callback(newStatus)
       }
     }
-  })
+  }
+  chrome.storage.onChanged.addListener(listener)
+  return () => {
+    chrome.storage.onChanged.removeListener(listener)
+  }
 }
