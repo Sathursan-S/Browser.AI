@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browser.AI Assistant</title>
+    <link rel="stylesheet" href="static/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="logo">
+                <i class="fas fa-robot"></i>
+                <h1>Browser.AI Assistant</h1>
+            </div>
+            <div class="status-indicator" id="statusIndicator">
+                <i class="fas fa-circle"></i>
+                <span id="connectionStatus">Connecting...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container main-container">
+        <!-- Configuration Panel -->
+        <div class="config-panel" id="configPanel">
+            <div class="panel-header">
+                <h3><i class="fas fa-cog"></i> Configuration</h3>
+                <button class="btn-icon" id="toggleConfig">
+                    <i class="fas fa-chevron-up"></i>
+                </button>
+            </div>
+            
+            <div class="panel-content" id="configContent">
+                <!-- LLM Configuration -->
+                <div class="config-section">
+                    <h4>🧠 LLM Configuration</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="llmProvider">Provider</label>
+                            <select id="llmProvider" class="form-control">
+                                <option value="openai">OpenAI</option>
+                                <option value="anthropic">Anthropic</option>
+                                <option value="ollama">Ollama</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="llmModel">Model</label>
+                            <select id="llmModel" class="form-control">
+                                <option value="gpt-4">GPT-4</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="apiKey">API Key</label>
+                        <input type="password" id="apiKey" class="form-control" placeholder="Enter your API key">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="temperature">Temperature: <span id="tempValue">0.0</span></label>
+                        <input type="range" id="temperature" class="form-range" min="0" max="1" step="0.1" value="0">
+                    </div>
+                </div>
+
+                <!-- Browser Configuration -->
+                <div class="config-section">
+                    <h4>🌐 Browser Configuration</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="useVision" checked>
+                                <span class="checkmark"></span>
+                                Use Vision
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="headless" checked>
+                                <span class="checkmark"></span>
+                                Headless Mode
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="config-actions">
+                    <button class="btn btn-primary" id="testConfig">
+                        <i class="fas fa-check"></i> Test Configuration
+                    </button>
+                    <button class="btn btn-secondary" id="saveConfig">
+                        <i class="fas fa-save"></i> Save
+                    </button>
+                    <button class="btn btn-outline" id="resetConfig">
+                        <i class="fas fa-refresh"></i> Reset
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Interface -->
+        <div class="chat-interface">
+            <div class="chat-header">
+                <h3>💬 Chat with Browser.AI</h3>
+                <div class="chat-actions">
+                    <button class="btn-icon" id="clearChat" title="Clear Chat">
+                        <i class="fas fa-broom"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="chat-messages" id="chatMessages">
+                <div class="welcome-message">
+                    <div class="message assistant-message">
+                        <div class="message-content">
+                            <h4>👋 Welcome to Browser.AI Assistant!</h4>
+                            <p>I can help you automate web tasks. Just describe what you want to do in natural language.</p>
+                            <div class="examples">
+                                <strong>Examples:</strong>
+                                <ul>
+                                    <li>"Search for 'Python tutorials' on Google"</li>
+                                    <li>"Go to Amazon and find wireless headphones"</li>
+                                    <li>"Navigate to GitHub and star the Browser.AI repo"</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-input-area">
+                <div class="task-status" id="taskStatus" style="display: none;">
+                    <div class="status-content">
+                        <div class="spinner"></div>
+                        <span id="statusText">Running task...</span>
+                        <button class="btn btn-danger btn-sm" id="stopTask">
+                            <i class="fas fa-stop"></i> Stop
+                        </button>
+                    </div>
+                </div>
+
+                <div class="chat-input">
+                    <textarea 
+                        id="messageInput" 
+                        placeholder="Describe your automation task..." 
+                        rows="2"
+                        maxlength="1000"
+                    ></textarea>
+                    <button class="btn btn-primary" id="sendMessage" disabled>
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <!-- System Status -->
+            <div class="sidebar-section">
+                <h4><i class="fas fa-chart-line"></i> System Status</h4>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <span class="status-label">Connections</span>
+                        <span class="status-value" id="connectionCount">0</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Running Tasks</span>
+                        <span class="status-value" id="runningTasks">0</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Total Tasks</span>
+                        <span class="status-value" id="totalTasks">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Tasks -->
+            <div class="sidebar-section">
+                <h4><i class="fas fa-running"></i> Active Tasks</h4>
+                <div id="activeTasks" class="active-tasks">
+                    <p class="no-tasks">No active tasks</p>
+                </div>
+            </div>
+
+            <!-- Recent Logs -->
+            <div class="sidebar-section">
+                <h4><i class="fas fa-list"></i> Recent Logs</h4>
+                <div class="logs-header">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="autoRefresh" checked>
+                        <span class="checkmark"></span>
+                        Auto-refresh
+                    </label>
+                    <button class="btn-icon" id="refreshLogs">
+                        <i class="fas fa-refresh"></i>
+                    </button>
+                </div>
+                <div id="recentLogs" class="recent-logs">
+                    <p class="no-logs">No recent logs</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for detailed views -->
+    <div class="modal" id="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Details</h3>
+                <button class="btn-icon" id="closeModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Content will be populated dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast notifications -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="static/script.js"></script>
+</body>
+</html>
