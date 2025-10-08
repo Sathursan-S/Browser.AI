@@ -29,6 +29,7 @@ and control t            self.browser = Browser(config=browser_config)
 import asyncio
 import logging
 import threading
+import uuid
 from typing import Optional, Set
 
 from flask import Flask
@@ -38,6 +39,11 @@ from .config import ConfigManager
 from .event_adapter import EventAdapter, EventType, LogEvent, LogLevel
 from .chatbot_service import ChatbotService, ConversationMessage, ChatbotIntent
 from .stuck_detector import StuckDetector, StuckDetectionConfig
+from .events import (
+    EventEmitter,
+    EventTransport,
+)
+from .events.bridge import EventBridge
 from .protocol import (
     ActionResult,
     StartTaskPayload,
@@ -73,6 +79,23 @@ class ExtensionTaskManager:
         self._finalize_lock = threading.Lock()
         self.browser = None
         self.cdp_endpoint = None
+        
+        # Initialize structured event system
+        self.event_emitter = EventEmitter()
+        self.event_transport = EventTransport(
+            socketio=socketio, namespace="/extension", event_name="structured_event"
+        )
+        self.event_bridge = EventBridge(self.event_emitter, self.event_transport)
+        self.event_transport.connect()
+        
+        # Generate session ID for tracking related events
+        self.session_id = str(uuid.uuid4())
+        self.agent_id: Optional[str] = None
+
+        # Stuck detection
+        self.stuck_detector = StuckDetector(StuckDetectionConfig())
+        self.awaiting_user_help = False
+        self.user_help_response: Optional[str] = None
 
         # Stuck detection
         self.stuck_detector = StuckDetector(StuckDetectionConfig())
@@ -105,6 +128,9 @@ class ExtensionTaskManager:
             )
 
             self.browser = Browser(config=browser_config)
+            
+            # Generate agent ID
+            self.agent_id = str(uuid.uuid4())
 
             # Reset stuck detector for new task
             self.stuck_detector.reset()
@@ -126,13 +152,27 @@ class ExtensionTaskManager:
             self.current_task = task_description
             self.is_running = True
             self.is_paused = False  # Reset pause state when starting new task
+            
+            # Emit structured agent start event
+            event = self.event_bridge.create_agent_start_event(
+                task_description=task_description,
+                agent_id=self.agent_id,
+                session_id=self.session_id,
+                task_id=self.agent_id,
+                configuration={
+                    "cdp_endpoint": cdp_endpoint,
+                    "use_vision": self.config_manager.agent_config.use_vision,
+                    "max_steps": self.config_manager.agent_config.max_steps,
+                },
+            )
+            self.event_bridge.emit_structured_event(event)
 
-            # Emit custom event
+            # Emit custom event for backward compatibility
             self.event_adapter.emit_custom_event(
                 EventType.AGENT_START,
                 f"Starting task: {task_description}",
                 LogLevel.INFO,
-                {"task": task_description, "cdp_endpoint": cdp_endpoint},
+                {"task": task_description, "cdp_endpoint": cdp_endpoint, "agent_id": self.agent_id},
             )
 
             return create_action_result(True, message="Task started successfully")
@@ -140,6 +180,18 @@ class ExtensionTaskManager:
         except Exception as e:
             logger.error(f"Failed to start task with CDP: {str(e)}", exc_info=True)
             self.is_running = False
+            
+            # Emit structured error event
+            if self.agent_id:
+                error_event = self.event_bridge.create_agent_error_event(
+                    agent_id=self.agent_id,
+                    error_type="StartupError",
+                    error_message=str(e),
+                    session_id=self.session_id,
+                    task_id=self.agent_id,
+                    recoverable=False,
+                )
+                self.event_bridge.emit_structured_event(error_event)
 
             # Emit custom event to indicate failure
             self.event_adapter.emit_custom_event(
@@ -171,6 +223,9 @@ class ExtensionTaskManager:
 
             self.browser = Browser(config=browser_config)
             self.cdp_endpoint = "http://localhost:9222"
+            
+            # Generate agent ID
+            self.agent_id = str(uuid.uuid4())
 
             # Create agent
             self.current_agent = Agent(
@@ -188,13 +243,27 @@ class ExtensionTaskManager:
             self.current_task = task_description
             self.is_running = True
             self.is_paused = False  # Reset pause state when starting new task
+            
+            # Emit structured agent start event
+            event = self.event_bridge.create_agent_start_event(
+                task_description=task_description,
+                agent_id=self.agent_id,
+                session_id=self.session_id,
+                task_id=self.agent_id,
+                configuration={
+                    "mode": "extension",
+                    "use_vision": self.config_manager.agent_config.use_vision,
+                    "max_steps": self.config_manager.agent_config.max_steps,
+                },
+            )
+            self.event_bridge.emit_structured_event(event)
 
-            # Emit custom event
+            # Emit custom event for backward compatibility
             self.event_adapter.emit_custom_event(
                 EventType.AGENT_START,
                 f"Starting task: {task_description}",
                 LogLevel.INFO,
-                {"task": task_description, "mode": "extension"},
+                {"task": task_description, "mode": "extension", "agent_id": self.agent_id},
             )
 
             return create_action_result(True, message="Task started successfully")
@@ -202,6 +271,19 @@ class ExtensionTaskManager:
         except Exception as e:
             logger.error(f"Failed to start task: {str(e)}", exc_info=True)
             self.is_running = False
+            
+            # Emit structured error event
+            if self.agent_id:
+                error_event = self.event_bridge.create_agent_error_event(
+                    agent_id=self.agent_id,
+                    error_type="StartupError",
+                    error_message=str(e),
+                    session_id=self.session_id,
+                    task_id=self.agent_id,
+                    recoverable=False,
+                )
+                self.event_bridge.emit_structured_event(error_event)
+            
             # Emit custom event to indicate failure
             self.event_adapter.emit_custom_event(
                 EventType.AGENT_ERROR,
@@ -284,18 +366,32 @@ class ExtensionTaskManager:
 
         # Determine success
         success = False
+        result_str = None
         if history is not None:
             try:
                 success = getattr(history, "is_done", lambda: False)()
+                result_str = str(history)
             except Exception:
                 success = False
+        
+        # Emit structured agent complete event
+        if self.agent_id:
+            complete_event = self.event_bridge.create_agent_complete_event(
+                agent_id=self.agent_id,
+                success=success,
+                result=result_str,
+                session_id=self.session_id,
+                task_id=self.agent_id,
+            )
+            self.event_bridge.emit_structured_event(complete_event)
 
         # Emit task_result to clients
         try:
             payload = {
                 "task": self.current_task,
                 "success": bool(success),
-                "history": str(history) if history is not None else None,
+                "history": result_str,
+                "agent_id": self.agent_id,
             }
             if self.socketio:
                 self.socketio.emit("task_result", payload, namespace="/extension")
@@ -323,7 +419,7 @@ class ExtensionTaskManager:
                     EventType.AGENT_ERROR,
                     "Task ended without success",
                     LogLevel.WARNING,
-                    {"task": self.current_task},
+                    {"task": self.current_task, "agent_id": self.agent_id},
                 )
         except Exception:
             logger.exception("Failed to emit final event via event_adapter")
