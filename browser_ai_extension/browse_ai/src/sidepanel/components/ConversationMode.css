@@ -21,6 +21,54 @@
   font-weight: 600;
 }
 
+.conversation-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.speech-toggle-btn {
+  padding: 6px 10px;
+  background: #3e3e42;
+  color: #9ca3af;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.speech-toggle-btn:hover:not(:disabled) {
+  background: #4e4e52;
+  color: #e0e0e0;
+}
+
+.speech-toggle-btn.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.speech-toggle-btn.active svg {
+  animation: soundWave 1s ease-in-out infinite;
+}
+
+.speech-toggle-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@keyframes soundWave {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
 .reset-btn {
   padding: 6px 12px;
   background: #3e3e42;
@@ -208,15 +256,28 @@
 }
 
 .input-container {
-  display: flex;
-  gap: 10px;
   padding: 15px 20px;
   background: #252526;
   border-top: 1px solid #3e3e42;
 }
 
+.voice-error-message {
+  padding: 8px 12px;
+  background: rgba(220, 38, 38, 0.1);
+  color: #ef4444;
+  font-size: 12px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  border-left: 3px solid #ef4444;
+}
+
+.input-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .chat-input {
-  flex: 1;
   padding: 10px 12px;
   background: #1e1e1e;
   color: #e0e0e0;
@@ -229,6 +290,12 @@
   transition: border-color 0.2s;
 }
 
+.input-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .chat-input:focus {
   border-color: #0078d4;
 }
@@ -236,6 +303,51 @@
 .chat-input:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.voice-input-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: #3e3e42;
+  color: #9ca3af;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.voice-input-btn:hover:not(:disabled) {
+  background: #4e4e52;
+  color: #e0e0e0;
+  transform: translateY(-1px);
+}
+
+.voice-input-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.voice-input-btn.listening {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.voice-input-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.voice-input-btn.unsupported {
+  opacity: 0.3;
+  cursor: help;
+}
+
+.voice-input-btn.unsupported:hover {
+  opacity: 0.5;
+  transform: none;
 }
 
 .send-btn {
