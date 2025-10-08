@@ -26,9 +26,9 @@ class LLMConfig:
 	model: str = 'gemini-2.5-flash-lite'
 	api_key: str = SecretStr(api_key) if api_key else SecretStr('')
 	base_url: Optional[str] = None  # For custom endpoints
-	temperature: float = 0.1
+	# temperature: float = 0.1
 	max_tokens: Optional[int] = None
-	timeout: int = 30
+	# timeout: int = 30
 
 
 @dataclass
@@ -49,13 +49,13 @@ class AgentConfig:
 	"""Configuration for agent behavior"""
 
 	use_vision: bool = True
-	max_failures: int = 3
+	max_failures: int = 5
 	retry_delay: int = 10
-	max_steps: int = 100
+	max_steps: int = 200
 	generate_gif: bool = True
 	validate_output: bool = True
-	# planner_llm: str = 'gemini-2.5-flash-lite'
-	# page_extraction_llm: str = 'gemini-2.5-flash-lite'
+	planner_llm: str = 'gemini-2.5-flash-lite'
+	page_extraction_llm: str = 'gemini-2.5-flash-lite'
 
 @dataclass
 class GUIConfig:
@@ -183,7 +183,7 @@ class ConfigManager:
 
 				kwargs = {
 					'model': self.llm_config.model,
-					'temperature': self.llm_config.temperature,
+					# 'temperature': self.llm_config.temperature,
 				}
 
 				if self.llm_config.api_key:
