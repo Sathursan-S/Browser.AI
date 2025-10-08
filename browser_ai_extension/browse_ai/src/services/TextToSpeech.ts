@@ -79,13 +79,39 @@ export class TextToSpeechService {
   }
 
   /**
-   * Get default voice for a language
+   * Get default voice for a language (prefers female voices)
    */
   public getDefaultVoice(lang: string = 'en-US'): SpeechSynthesisVoice | undefined {
     const voices = this.getVoices()
     
-    // Try to find default voice for language
-    let voice = voices.find(v => v.lang === lang && v.default)
+    // Helper function to check if voice name suggests female
+    const isFemaleVoice = (voice: SpeechSynthesisVoice): boolean => {
+      const name = voice.name.toLowerCase()
+      const femaleKeywords = ['female', 'woman', 'samantha', 'victoria', 'susan', 'karen', 'zira', 
+                              'hazel', 'sara', 'catherine', 'aria', 'joanna', 'salli', 'kimberly',
+                              'ivy', 'natalie', 'emma', 'amy', 'clara', 'alice', 'linda', 'heather',
+                              'google us english 2', 'google us english 4', 'google us english 6',
+                              'google uk english female', 'microsoft zira', 'google हिन्दी']
+      return femaleKeywords.some(keyword => name.includes(keyword))
+    }
+    
+    // Try to find female voice for the language
+    let voice = voices.find(v => v.lang === lang && isFemaleVoice(v))
+    
+    // Fallback to any female voice for that language family
+    if (!voice) {
+      voice = voices.find(v => v.lang.startsWith(lang.split('-')[0]) && isFemaleVoice(v))
+    }
+    
+    // Fallback to any female English voice
+    if (!voice) {
+      voice = voices.find(v => v.lang.startsWith('en') && isFemaleVoice(v))
+    }
+    
+    // Fallback to default voice for language
+    if (!voice) {
+      voice = voices.find(v => v.lang === lang && v.default)
+    }
     
     // Fallback to any voice for that language
     if (!voice) {
@@ -120,6 +146,31 @@ export class TextToSpeechService {
   }
 
   /**
+   * Get available female voices
+   */
+  public getFemaleVoices(lang?: string): SpeechSynthesisVoice[] {
+    const voices = this.getVoices()
+    
+    const isFemaleVoice = (voice: SpeechSynthesisVoice): boolean => {
+      const name = voice.name.toLowerCase()
+      const femaleKeywords = ['female', 'woman', 'samantha', 'victoria', 'susan', 'karen', 'zira', 
+                              'hazel', 'sara', 'catherine', 'aria', 'joanna', 'salli', 'kimberly',
+                              'ivy', 'natalie', 'emma', 'amy', 'clara', 'alice', 'linda', 'heather',
+                              'google us english 2', 'google us english 4', 'google us english 6',
+                              'google uk english female', 'microsoft zira']
+      return femaleKeywords.some(keyword => name.includes(keyword))
+    }
+    
+    let femaleVoices = voices.filter(isFemaleVoice)
+    
+    if (lang) {
+      femaleVoices = femaleVoices.filter(v => v.lang.startsWith(lang.split('-')[0]))
+    }
+    
+    return femaleVoices
+  }
+
+  /**
    * Speak text with options
    */
   public speak(
@@ -148,6 +199,11 @@ export class TextToSpeechService {
     utterance.pitch = options.pitch ?? 1
     utterance.volume = options.volume ?? 1
     utterance.lang = options.lang || 'en-US'
+
+    // Log selected voice for debugging
+    if (utterance.voice) {
+      console.log(`🎤 Speaking with voice: ${utterance.voice.name} (${utterance.voice.lang})`)
+    }
 
     // Setup event handlers
     utterance.onstart = () => {
