@@ -717,9 +717,9 @@ class BrowserContext:
                     }
 
                     // Remove highlight attributes from elements
-                    const highlightedElements = document.querySelectorAll('[browser-user-highlight-id^="playwright-highlight-"]');
+                    const highlightedElements = document.querySelectorAll('[browser-air-highlight-id^="playwright-highlight-"]');
                     highlightedElements.forEach(el => {
-                        el.removeAttribute('browser-user-highlight-id');
+                        el.removeAttribute('browser-air-highlight-id');
                     });
                 } catch (e) {
                     console.error('Failed to remove highlights:', e);

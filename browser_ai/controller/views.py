@@ -51,12 +51,13 @@ class ScrollAction(BaseModel):
 class SendKeysAction(BaseModel):
 	keys: str
 
+
 class ExtractPageContentAction(BaseModel):
     value: str
 
 class RequestUserHelpAction(BaseModel):
-	message: str
-	reason: str  # e.g., "captcha", "manual_verification", "complex_form"
+	message: str  # Clear message explaining what the user needs to do
+	reason: str  # Type of intervention: "captcha", "authentication", "payment", "verification", "personal_data", "complex_form"
 	
 class NoParamsAction(BaseModel):
 	"""
