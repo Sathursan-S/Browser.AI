@@ -73,7 +73,7 @@ class ExtensionTaskManager:
         self._finalize_lock = threading.Lock()
         self.browser = None
         self.cdp_endpoint = None
-        
+
         # Stuck detection
         self.stuck_detector = StuckDetector(StuckDetectionConfig())
         self.awaiting_user_help = False
@@ -331,7 +331,7 @@ class ExtensionTaskManager:
         # Ensure browser closed (best-effort)
         if self.browser:
             try:
-                self.browser.close()
+                await self.browser.close()
             except Exception:
                 logger.exception("Failed to close browser during finalize")
 
@@ -441,85 +441,86 @@ class ExtensionTaskManager:
             is_paused=self.is_paused,
             cdp_endpoint=self.cdp_endpoint,
         )
-    
+
     async def request_user_help(self, stuck_report) -> Optional[str]:
         """Request help from user when agent is stuck"""
         if not self.socketio:
             logger.warning("Cannot request user help: no socketio connection")
             return None
-        
+
         self.awaiting_user_help = True
         self.user_help_response = None
-        
+
         # Emit help request to the extension
         help_payload = {
             "reason": stuck_report.reason,
             "summary": stuck_report.detailed_summary,
             "attempted_actions": stuck_report.attempted_actions,
             "duration": int(stuck_report.duration_seconds),
-            "suggestion": stuck_report.suggestion
+            "suggestion": stuck_report.suggestion,
         }
-        
+
         logger.info(f"🆘 Requesting user help: {stuck_report.reason}")
-        
+
         # Emit to extension
         self.socketio.emit("agent_needs_help", help_payload, namespace="/extension")
-        
+
         # Emit as chat message for conversational interface
-        self.socketio.emit("chat_response", {
-            "message": stuck_report.detailed_summary,
-            "isIntent": False
-        }, namespace="/extension")
-        
+        self.socketio.emit(
+            "chat_response",
+            {"message": stuck_report.detailed_summary, "isIntent": False},
+            namespace="/extension",
+        )
+
         # Wait for user response (with timeout)
         timeout = 300  # 5 minutes
         start_time = asyncio.get_event_loop().time()
-        
+
         while self.awaiting_user_help and self.user_help_response is None:
             await asyncio.sleep(1)
             if asyncio.get_event_loop().time() - start_time > timeout:
                 logger.warning("User help request timed out")
                 self.awaiting_user_help = False
                 return None
-        
+
         response = self.user_help_response
         self.user_help_response = None
         self.awaiting_user_help = False
-        
+
         return response
-    
+
     def provide_help_response(self, response: str):
         """Called when user provides help response"""
         self.user_help_response = response
         logger.info(f"📝 User provided help: {response[:100]}...")
-    
+
     def _on_agent_step(self, state, output, step_num):
         """Callback invoked after each agent step to check for stuck state"""
         # Start the step timer
         self.stuck_detector.start_step()
-        
+
         # Record all actions from this step
-        if hasattr(output, 'action') and output.action:
+        if hasattr(output, "action") and output.action:
             for action_dict in output.action:
                 for action_name, action_params in action_dict.items():
                     # Determine if action was successful (simplified check)
-                    success = not (hasattr(output, 'error') and output.error)
-                    error_msg = output.error if hasattr(output, 'error') else None
-                    
+                    success = not (hasattr(output, "error") and output.error)
+                    error_msg = output.error if hasattr(output, "error") else None
+
                     self.stuck_detector.record_action(
                         action_name=action_name,
                         success=success,
                         error_message=error_msg,
-                        metadata={"step": step_num}
+                        metadata={"step": step_num},
                     )
-        
+
         # Check if agent is stuck periodically (every 3 steps)
         if step_num % 3 == 0:
             stuck_report = self.stuck_detector.check_if_stuck()
-            
+
             if stuck_report.is_stuck:
                 logger.warning(f"🆘 Agent appears stuck: {stuck_report.reason}")
-                
+
                 # Request help asynchronously (don't block)
                 try:
                     loop = asyncio.get_event_loop()
@@ -547,9 +548,13 @@ class ExtensionWebSocketHandler:
             config_manager, event_adapter, socketio
         )
         self.connected_clients: Set[str] = set()
-        
+
         # Initialize chatbot service
-        api_key = getattr(config_manager.llm_config.api_key, '_secret_value', None) if hasattr(config_manager.llm_config.api_key, '_secret_value') else config_manager.llm_config.api_key
+        api_key = (
+            getattr(config_manager.llm_config.api_key, "_secret_value", None)
+            if hasattr(config_manager.llm_config.api_key, "_secret_value")
+            else config_manager.llm_config.api_key
+        )
         self.chatbot = ChatbotService(api_key=api_key)
         logger.info("Chatbot service initialized for conversational task clarification")
 
@@ -686,46 +691,51 @@ class ExtensionWebSocketHandler:
         def handle_chat_message(data):
             """Handle chat message from user for intent clarification"""
             from flask import request
-            
+
             session_id = request.sid
             user_message = data.get("message", "").strip()
-            
+
             if not user_message:
-                emit("chat_response", {
-                    "role": "assistant",
-                    "content": "Please provide a message.",
-                    "intent": None
-                })
+                emit(
+                    "chat_response",
+                    {
+                        "role": "assistant",
+                        "content": "Please provide a message.",
+                        "intent": None,
+                    },
+                )
                 return
-            
+
             # Process message through chatbot
-            response_msg, intent = self.chatbot.process_message(session_id, user_message)
-            
+            response_msg, intent = self.chatbot.process_message(
+                session_id, user_message
+            )
+
             # Prepare response
             response_data = {
                 "role": response_msg.role,
                 "content": response_msg.content,
-                "intent": None
+                "intent": None,
             }
-            
+
             # If intent is ready, include it
             if intent and intent.is_ready:
                 response_data["intent"] = {
                     "task_description": intent.task_description,
                     "is_ready": intent.is_ready,
-                    "confidence": intent.confidence
+                    "confidence": intent.confidence,
                 }
-                
+
                 logger.info(f"Chatbot clarified intent: {intent.task_description}")
-                
+
                 # Emit event indicating task is ready to start
                 self.event_adapter.emit_custom_event(
                     EventType.AGENT_START,
                     f"Task clarified through conversation: {intent.task_description}",
                     LogLevel.INFO,
-                    {"task": intent.task_description}
+                    {"task": intent.task_description},
                 )
-            
+
             emit("chat_response", response_data)
 
         @self.socketio.on("start_clarified_task", namespace="/extension")
@@ -734,13 +744,13 @@ class ExtensionWebSocketHandler:
             task_description = data.get("task", "").strip()
             cdp_endpoint = data.get("cdp_endpoint", "")
             is_extension = data.get("is_extension", True)
-            
+
             if not task_description:
                 emit("error", {"message": "Task description is required"})
                 return
-            
+
             logger.info(f"Starting clarified task: {task_description}")
-            
+
             # Use the same logic as start_task
             if is_extension or not cdp_endpoint or cdp_endpoint == "extension-proxy":
                 # Start task without CDP connection
@@ -753,15 +763,16 @@ class ExtensionWebSocketHandler:
                         await self.task_manager.run_task()
 
                 import threading
+
                 task_thread = threading.Thread(target=run_task)
                 task_thread.daemon = True
                 self.task_manager.register_thread(task_thread)
                 task_thread.start()
-                
+
                 emit("task_started", {"message": f"Starting task: {task_description}"})
                 emit("status", self.task_manager.get_status().to_dict())
                 return
-            
+
             # Start task with CDP if available
             def run_task():
                 asyncio.run(start_and_run())
@@ -774,6 +785,7 @@ class ExtensionWebSocketHandler:
                     await self.task_manager.run_task()
 
             import threading
+
             task_thread = threading.Thread(target=run_task)
             task_thread.daemon = True
             self.task_manager.register_thread(task_thread)
@@ -786,41 +798,42 @@ class ExtensionWebSocketHandler:
         def handle_user_help_response(data):
             """Handle user's response to agent stuck help request"""
             response = data.get("response", "").strip()
-            
+
             if not response:
                 emit("error", {"message": "Please provide a response"})
                 return
-            
+
             logger.info(f"📬 Received user help response: {response[:100]}...")
-            
+
             # Provide the response to task manager
             self.task_manager.provide_help_response(response)
-            
+
             # Acknowledge receipt
-            emit("help_response_received", {
-                "message": "Thank you! The agent will continue with your guidance."
-            })
-            
+            emit(
+                "help_response_received",
+                {"message": "Thank you! The agent will continue with your guidance."},
+            )
+
             # Log the event
             self.event_adapter.emit_custom_event(
                 EventType.AGENT_RESUME,
                 f"User provided help: {response[:100]}...",
                 LogLevel.INFO,
-                {"help_response": response}
+                {"help_response": response},
             )
 
         @self.socketio.on("reset_conversation", namespace="/extension")
         def handle_reset_conversation():
             """Handle conversation reset request"""
             from flask import request
-            
+
             session_id = request.sid
             greeting = self.chatbot.reset_conversation(session_id)
-            
-            emit("conversation_reset", {
-                "role": greeting.role,
-                "content": greeting.content
-            })
+
+            emit(
+                "conversation_reset",
+                {"role": greeting.role, "content": greeting.content},
+            )
 
     def broadcast_event(self, event: LogEvent):
         """Broadcast event to all connected extension clients"""
