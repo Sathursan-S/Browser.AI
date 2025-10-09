@@ -1,8 +1,10 @@
 import asyncio
 import json
 import logging
+import urllib.parse
 from typing import Callable, Dict, Optional, Type
 
+from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.prompts import PromptTemplate
 from lmnr import Laminar, observe
 from pydantic import BaseModel
@@ -13,8 +15,8 @@ from browser_ai.controller.registry.service import Registry
 from browser_ai.controller.views import (
 	AskUserQuestionAction,
 	ClickElementAction,
-	DoneAction,
 	DetectLocationAction,
+	DoneAction,
 	FindBestWebsiteAction,
 	GoToUrlAction,
 	InputTextAction,
@@ -24,6 +26,7 @@ from browser_ai.controller.views import (
 	ScrollAction,
 	SearchEcommerceAction,
 	SearchGoogleAction,
+	SearchGoogleWithAiAction,
 	SearchYouTubeAction,
 	SendKeysAction,
 	SwitchTabAction,
@@ -32,7 +35,6 @@ from browser_ai.location_service import LocationDetector
 from browser_ai.utils import time_execution_async, time_execution_sync
 
 logger = logging.getLogger(__name__)
-from langchain_core.language_models.chat_models import BaseChatModel
 
 
 class Controller:
@@ -89,6 +91,71 @@ class Controller:
 			return ActionResult(extracted_content=msg, include_in_memory=True)
 
 		@self.registry.action(
+			(
+				'Search Google using AI to generate a more effective search query based on your input. '
+				'This helps in refining vague or complex queries to get better search results.'
+			),
+			param_model=SearchGoogleWithAiAction,
+		)
+		async def search_google_with_ai(
+			params: SearchGoogleWithAiAction, browser: BrowserContext, page_extraction_llm: BaseChatModel
+		):
+			# 1. Construct URL for Google's AI search mode
+			url = f"https://www.google.com/search?q={urllib.parse.quote_plus(params.query)}&udm=50"
+
+			# 2. Open the URL in a new tab
+			original_page_id = (await browser.get_current_page()).page_id
+			await browser.create_new_tab(url)
+			page = await browser.get_current_page()
+
+			try:
+				# 3. Wait for the AI response container to be visible
+				container_selector = 'div[data-subtree="aimc"]'
+				await page.wait_for_selector(container_selector, state='visible', timeout=20000)  # 20s timeout
+
+				# 4. Extract the text content from the container
+				container = await page.query_selector(container_selector)
+				if not container:
+					msg = "No AI Mode content found on the page."
+					logger.warning(msg)
+					return ActionResult(extracted_content=msg, include_in_memory=True)
+
+				ai_response_text = (await container.inner_text()).strip()
+
+				if not ai_response_text:
+					msg = "AI Mode container was found, but it was empty."
+					logger.warning(msg)
+					return ActionResult(extracted_content=msg, include_in_memory=True)
+
+				# 5. Use an LLM to process and summarize the extracted AI response
+				prompt = (
+					'Your task is to analyze the provided AI-generated search result and provide a concise summary or answer. '
+					'Focus on the key information and present it clearly. AI-Generated Content: {content}'
+				)
+				template = PromptTemplate(input_variables=['content'], template=prompt)
+
+				try:
+					output = page_extraction_llm.invoke(template.format(content=ai_response_text))
+					summary = output.content
+					msg = f'🤖 AI Search Summary for "{params.query}":\n\n{summary}'
+					logger.info(f"Successfully processed AI search for '{params.query}'")
+					return ActionResult(extracted_content=msg, include_in_memory=True)
+				except Exception as e:
+					logger.error(f'Error processing AI content with LLM: {e}')
+					# Fallback to returning the raw extracted text if LLM fails
+					return ActionResult(extracted_content=f"Raw AI Response: {ai_response_text}", include_in_memory=True)
+
+			except Exception as e:
+				error_msg = f"Failed to get AI-powered search results: {str(e)}"
+				logger.error(error_msg)
+				return ActionResult(error=error_msg, include_in_memory=True)
+			finally:
+				# 6. Clean up: close the new tab and switch back to the original one
+				await page.close()
+				await browser.switch_to_tab(original_page_id)
+				logger.info("Closed AI search tab and returned to original page.")
+
+		@self.registry.action(
 			'Find the best website for a specific purpose (shopping, downloading, services, etc.). Use this FIRST before attempting to shop, download, or access specific content. Returns suggested websites to try.',
 			param_model=FindBestWebsiteAction,
 		)
@@ -98,7 +165,9 @@ class Controller:
 			# Check if location is detected for shopping tasks
 			location_context = ""
 			if params.category.lower() == 'shopping' and self.location_detector.has_detected():
-				location_context = f" in {self.location_detector.get_location().country}" if self.location_detector.get_location() else ""
+				location = self.location_detector.get_location()
+				if location:
+					location_context = f" in {location.country}"
 			
 			# Construct an intelligent search query to find the best websites
 			if params.category.lower() == 'shopping':
@@ -120,7 +189,11 @@ class Controller:
 			if params.category.lower() == 'shopping' and self.location_detector.has_detected():
 				location_msg = f"\n{self.location_detector.get_ecommerce_context()}"
 			
-			msg = f'🔎  Researching best websites for: {params.purpose} (category: {params.category}). Review the search results to identify top websites, then navigate to the most appropriate one.{location_msg}'
+			msg = (
+				f'🔎  Researching best websites for: {params.purpose} (category: {params.category}). '
+				'Review the search results to identify top websites, then navigate to the most appropriate one.'
+				f'{location_msg}'
+			)
 			logger.info(msg)
 			return ActionResult(
 				extracted_content=msg,
@@ -137,7 +210,10 @@ class Controller:
 			
 			if location_info:
 				context_msg = self.location_detector.get_full_context()
-				msg = f'📍 Location Detected!\n{context_msg}\n\nYou can now use this information for personalized shopping and currency-aware searches.'
+				msg = (
+					f'📍 Location Detected!\n{context_msg}\n\n'
+					'You can now use this information for personalized shopping and currency-aware searches.'
+				)
 				logger.info(f"Location detected: {location_info.country}")
 			else:
 				msg = '⚠️ Could not detect location. Defaulting to United States (USD).'
@@ -254,7 +330,10 @@ class Controller:
 
 			# if element has file uploader then dont click
 			if await browser.is_file_uploader(element_node):
-				msg = f'Index {params.index} - has an element which opens file upload dialog. To upload files please use a specific function to upload files '
+				msg = (
+					f'Index {params.index} - has an element which opens file upload dialog. '
+					'To upload files please use a specific function to upload files '
+				)
 				logger.info(msg)
 				return ActionResult(extracted_content=msg, include_in_memory=True)
 
@@ -265,7 +344,10 @@ class Controller:
 				if download_path:
 					msg = f'💾  Downloaded file to {download_path}'
 				else:
-					msg = f'🖱️  Clicked button with index {params.index}: {element_node.get_all_text_till_next_clickable_element(max_depth=2)}'
+					msg = (
+						f'🖱️  Clicked button with index {params.index}: '
+						f'{element_node.get_all_text_till_next_clickable_element(max_depth=2)}'
+					)
 
 				logger.info(msg)
 				logger.debug(f'Element xpath: {element_node.xpath}')

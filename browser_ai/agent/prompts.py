@@ -9,15 +9,15 @@ from browser_ai.browser.views import BrowserState
 
 
 class SystemPrompt:
-	def __init__(self, action_description: str, max_actions_per_step: int = 10):
-		self.default_action_description = action_description
-		self.max_actions_per_step = max_actions_per_step
+    def __init__(self, action_description: str, max_actions_per_step: int = 10):
+        self.default_action_description = action_description
+        self.max_actions_per_step = max_actions_per_step
 
-	def important_rules(self) -> str:
-		"""
-		Returns the important rules for the agent.
-		"""
-		text = """
+    def important_rules(self) -> str:
+        """
+        Returns the important rules for the agent.
+        """
+        text = """
 ⚠️ CRITICAL: SHOPPING TASKS MUST START WITH THESE TWO ACTIONS:
    - For ANY shopping/buying task, your FIRST action MUST be: {"detect_location": {}}
    - Your SECOND action MUST be: {"find_best_website": {"purpose": "what you're shopping for", "category": "shopping"}}
@@ -55,6 +55,10 @@ class SystemPrompt:
        {"open_tab": {}},
        {"go_to_url": {"url": "https://example.com"}},
        {"extract_content": ""}
+     ]
+   - AI-powered research: [
+       {"search_google_with_ai": {"query": "complex or vague search query"}},
+       {"extract_content": "specific information needed"}
      ]
 
 
@@ -118,7 +122,22 @@ class SystemPrompt:
        - Use the answer to continue with appropriate actions
        - Remember the answer for the rest of the task
 
-6. LOCATION-AWARE SHOPPING:
+6. SEARCH STRATEGIES:
+   - Use search_google for straightforward, specific searches where you know exactly what you're looking for
+   - Use search_google_with_ai for complex, vague, or ambiguous queries that could benefit from AI refinement:
+     * When user asks something broad like "find information about..." or "research..."
+     * For queries that need interpretation or context understanding
+     * When you need more intelligent, conversational search results
+     * Examples: "research latest AI developments", "find best practices for web development", 
+       "compare different investment options"
+   - search_google_with_ai automatically:
+     * Opens Google's AI search mode in a new tab
+     * Extracts AI-generated content from Google's AI results
+     * Processes and summarizes the content using an LLM
+     * Returns to the original tab when complete
+   - For shopping tasks, still use the location-aware workflow: detect_location → find_best_website → search_ecommerce
+
+7. LOCATION-AWARE SHOPPING:
    - ALWAYS use detect_location FIRST when starting any shopping/buying task
    - Location detection provides:
      * User's country and currency (e.g., "Sri Lanka - LKR Rs", "USA - USD $")
@@ -244,11 +263,11 @@ class SystemPrompt:
 - DO NOT manually navigate and click PDF links - use this action instead for better results
 
 """
-		text += f'   - use maximum {self.max_actions_per_step} actions per sequence'
-		return text
+        text += f"   - use maximum {self.max_actions_per_step} actions per sequence"
+        return text
 
-	def input_format(self) -> str:
-		return """
+    def input_format(self) -> str:
+        return """
 INPUT STRUCTURE:
 1. Current URL: The webpage you're currently on
 2. Available Tabs: List of open browser tabs
@@ -268,15 +287,15 @@ Notes:
 - [] elements provide context but cannot be interacted with
 """
 
-	def get_system_message(self) -> SystemMessage:
-		"""
-		Get the system prompt for the agent.
+    def get_system_message(self) -> SystemMessage:
+        """
+        Get the system prompt for the agent.
 
-		Returns:
-		    str: Formatted system prompt
-		"""
+        Returns:
+            str: Formatted system prompt
+        """
 
-		AGENT_PROMPT = f"""You are a precise browser automation agent that interacts with websites through structured commands. Your role is to:
+        AGENT_PROMPT = f"""You are a precise browser automation agent that interacts with websites through structured commands. Your role is to:
 1. Analyze the provided webpage elements and structure
 2. Use the given information to accomplish the ultimate task
 3. Respond with valid JSON containing your next action sequence and state assessment
@@ -290,7 +309,7 @@ Functions:
 {self.default_action_description}
 
 Remember: Your responses must be valid JSON matching the specified format. Each action in the sequence must be valid."""
-		return SystemMessage(content=AGENT_PROMPT)
+        return SystemMessage(content=AGENT_PROMPT)
 
 
 # Example:
@@ -300,50 +319,48 @@ Remember: Your responses must be valid JSON matching the specified format. Each 
 
 
 class AgentMessagePrompt:
-	def __init__(
-		self,
-		state: BrowserState,
-		result: Optional[List[ActionResult]] = None,
-		include_attributes: list[str] = [],
-		max_error_length: int = 400,
-		step_info: Optional[AgentStepInfo] = None,
-	):
-		self.state = state
-		self.result = result
-		self.max_error_length = max_error_length
-		self.include_attributes = include_attributes
-		self.step_info = step_info
+    def __init__(
+        self,
+        state: BrowserState,
+        result: Optional[List[ActionResult]] = None,
+        include_attributes: list[str] = [],
+        max_error_length: int = 400,
+        step_info: Optional[AgentStepInfo] = None,
+    ):
+        self.state = state
+        self.result = result
+        self.max_error_length = max_error_length
+        self.include_attributes = include_attributes
+        self.step_info = step_info
 
-	def get_user_message(self, use_vision: bool = True) -> HumanMessage:
-		elements_text = self.state.element_tree.clickable_elements_to_string(include_attributes=self.include_attributes)
+    def get_user_message(self, use_vision: bool = True) -> HumanMessage:
+        elements_text = self.state.element_tree.clickable_elements_to_string(
+            include_attributes=self.include_attributes
+        )
 
-		has_content_above = (self.state.pixels_above or 0) > 0
-		has_content_below = (self.state.pixels_below or 0) > 0
+        has_content_above = (self.state.pixels_above or 0) > 0
+        has_content_below = (self.state.pixels_below or 0) > 0
 
-		if elements_text != '':
-			if has_content_above:
-				elements_text = (
-					f'... {self.state.pixels_above} pixels above - scroll or extract content to see more ...\n{elements_text}'
-				)
-			else:
-				elements_text = f'[Start of page]\n{elements_text}'
-			if has_content_below:
-				elements_text = (
-					f'{elements_text}\n... {self.state.pixels_below} pixels below - scroll or extract content to see more ...'
-				)
-			else:
-				elements_text = f'{elements_text}\n[End of page]'
-		else:
-			elements_text = 'empty page'
+        if elements_text != "":
+            if has_content_above:
+                elements_text = f"... {self.state.pixels_above} pixels above - scroll or extract content to see more ...\n{elements_text}"
+            else:
+                elements_text = f"[Start of page]\n{elements_text}"
+            if has_content_below:
+                elements_text = f"{elements_text}\n... {self.state.pixels_below} pixels below - scroll or extract content to see more ..."
+            else:
+                elements_text = f"{elements_text}\n[End of page]"
+        else:
+            elements_text = "empty page"
 
-		if self.step_info:
-			step_info_description = f'Current step: {self.step_info.step_number + 1}/{self.step_info.max_steps}'
-		else:
-			step_info_description = ''
-		time_str = datetime.now().strftime('%Y-%m-%d %H:%M')
-		step_info_description += f'Current date and time: {time_str}'
+        if self.step_info:
+            step_info_description = f"Current step: {self.step_info.step_number + 1}/{self.step_info.max_steps}"
+        else:
+            step_info_description = ""
+        time_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+        step_info_description += f"Current date and time: {time_str}"
 
-		state_description = f"""
+        state_description = f"""
 [Task history memory ends here]
 [Current state starts here]
 You will see the following only once - if you need to remember it and you dont know it yet, write it down in the memory:
@@ -355,34 +372,38 @@ Interactive elements from current page:
 {step_info_description}
 """
 
-		if self.result:
-			for i, result in enumerate(self.result):
-				if result.extracted_content:
-					state_description += f'\nAction result {i + 1}/{len(self.result)}: {result.extracted_content}'
-				if result.error:
-					# only use last 300 characters of error
-					error = result.error[-self.max_error_length :]
-					state_description += f'\nAction error {i + 1}/{len(self.result)}: ...{error}'
+        if self.result:
+            for i, result in enumerate(self.result):
+                if result.extracted_content:
+                    state_description += f"\nAction result {i + 1}/{len(self.result)}: {result.extracted_content}"
+                if result.error:
+                    # only use last 300 characters of error
+                    error = result.error[-self.max_error_length :]
+                    state_description += (
+                        f"\nAction error {i + 1}/{len(self.result)}: ...{error}"
+                    )
 
-		if self.state.screenshot and use_vision == True:
-			# Format message for vision model
-			return HumanMessage(
-				content=[
-					{'type': 'text', 'text': state_description},
-					{
-						'type': 'image_url',
-						'image_url': {'url': f'data:image/png;base64,{self.state.screenshot}'},
-					},
-				]
-			)
+        if self.state.screenshot and use_vision == True:
+            # Format message for vision model
+            return HumanMessage(
+                content=[
+                    {"type": "text", "text": state_description},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/png;base64,{self.state.screenshot}"
+                        },
+                    },
+                ]
+            )
 
-		return HumanMessage(content=state_description)
+        return HumanMessage(content=state_description)
 
 
 class PlannerPrompt(SystemPrompt):
-	def get_system_message(self) -> SystemMessage:
-		return SystemMessage(
-			content="""You are a planning agent that helps break down tasks into smaller steps and reason about the current state.
+    def get_system_message(self) -> SystemMessage:
+        return SystemMessage(
+            content="""You are a planning agent that helps break down tasks into smaller steps and reason about the current state.
 Your role is to:
 1. Analyze the current state and history
 2. Evaluate progress towards the ultimate goal
@@ -403,4 +424,4 @@ Your output format should be always a JSON object with the following fields:
 Ignore the other AI messages output structures.
 
 Keep your responses concise and focused on actionable insights."""
-		)
+        )
