@@ -664,7 +664,20 @@ class Agent:
                 await self.browser.close()
 
             if self.generate_gif:
-                output_path: str = f"agent_history-{self.task}.gif"
+                # 1. Define the target directory relative to the current script's location
+                output_dir = os.path.join("output", "history_gif")
+
+                # 2. Create the directory if it doesn't already exist
+                os.makedirs(output_dir, exist_ok=True)
+
+                # 3. Generate a unique filename
+                # Note: I'm replacing "uuid" with a call to the uuid module for a real example
+                filename = f"agent_history-{self.task}-{uuid.uuid4()}.gif"
+                
+                # 4. Combine the directory and filename to create the full path
+                output_path = os.path.join(output_dir, filename)
+
+                # This logic still allows you to override the path if self.generate_gif is a string
                 if isinstance(self.generate_gif, str):
                     output_path = self.generate_gif
 

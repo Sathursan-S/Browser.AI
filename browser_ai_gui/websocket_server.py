@@ -86,7 +86,7 @@ class ExtensionTaskManager:
                 use_vision=self.config_manager.agent_config.use_vision,
                 max_failures=self.config_manager.agent_config.max_failures,
                 retry_delay=self.config_manager.agent_config.retry_delay,
-                generate_gif=False,  # Disable GIF generation for extension
+                generate_gif=True,  # Enable GIF generation for extension
                 validate_output=self.config_manager.agent_config.validate_output,
                 register_done_callback=self._on_agent_done,
             )
@@ -148,7 +148,7 @@ class ExtensionTaskManager:
                 use_vision=self.config_manager.agent_config.use_vision,
                 max_failures=self.config_manager.agent_config.max_failures,
                 retry_delay=self.config_manager.agent_config.retry_delay,
-                generate_gif=False,  # Disable GIF generation for extension
+                generate_gif=True,  # Enable GIF generation for extension
                 validate_output=self.config_manager.agent_config.validate_output,
                 register_done_callback=self._on_agent_done,
             )
@@ -279,12 +279,13 @@ class ExtensionTaskManager:
         # Also publish via event adapter for internal logging
         try:
             if success:
-                self.event_adapter.emit_custom_event(
-                    EventType.AGENT_COMPLETE,
-                    "Task completed successfully",
-                    LogLevel.INFO,
-                    {"task": self.current_task},
-                )
+                print("Task completed successfully")
+                # self.event_adapter.emit_custom_event(
+                #     EventType.AGENT_COMPLETE,
+                #     "Task completed successfully",
+                #     LogLevel.INFO,
+                #     {"task": self.current_task},
+                # )
             else:
                 self.event_adapter.emit_custom_event(
                     EventType.AGENT_ERROR,

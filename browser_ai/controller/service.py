@@ -84,7 +84,7 @@ class Controller:
 			return ActionResult(extracted_content=msg, include_in_memory=True)
 
 		@self.registry.action(
-			'Search for products on popular e-commerce sites. Specify site for targeted search (daraz.lk, ikman.lk, glomark.lk) or leave blank for Daraz (most popular in Sri Lanka).',
+			'Search for products on popular e-commerce sites. Specify site for targeted search (daraz.lk, ikman.lk, glomark.lk, amazon.com) or leave blank for Daraz (most popular in Sri Lanka).',
 			param_model=SearchEcommerceAction,
 		)
 		async def search_ecommerce(params: SearchEcommerceAction, browser: BrowserContext):
@@ -101,6 +101,8 @@ class Controller:
 				search_url = f'https://ikman.lk/search?q={search_query}'
 			elif 'glomark' in site.lower():
 				search_url = f'https://glomark.lk/search?q={search_query}'
+			elif 'amazon' in site.lower():
+				search_url = f'https://www.amazon.com/s?k={search_query}'
 			else:
 				# Fallback to Daraz
 				search_url = f'https://www.daraz.lk/search/?q={search_query}'
