@@ -5,10 +5,6 @@
   background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
 }
 
-/* Removed conversation-header styles - now using main SidePanel header */
-
-/* Removed old speech-toggle-btn and reset-btn styles - now using main header buttons */
-
 .messages-container {
   flex: 1;
   overflow-y: auto;
@@ -245,9 +241,16 @@
   gap: 12px;
 }
 
-.chat-input-with-buttons {
-  width: 100%;
-  padding: 16px 60px 16px 18px;
+.input-field {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.chat-input {
+  flex: 1;
+  padding: 12px 16px;
   background: rgba(255, 255, 255, 0.08);
   color: #ffffff;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -260,69 +263,87 @@
   transition: all 0.3s ease;
   backdrop-filter: blur(10px);
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  min-height: 44px;
 }
 
-.chat-input-with-buttons:focus {
+.chat-input:focus {
   border-color: rgba(37, 99, 235, 0.5);
   box-shadow: 0 4px 15px rgba(37, 99, 235, 0.2);
 }
 
-.input-action-btn {
+.chat-input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.input-actions {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+}
+
+/* Action Button Base Styles */
+.action-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: none;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.3s ease;
   backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.1);
+  color: #e0e0e0;
 }
 
-.input-action-btn.voice-btn {
-  background: rgba(147, 51, 234, 0.2);
-  color: #a855f7;
-  border: 1px solid rgba(147, 51, 234, 0.3);
+.action-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
-.input-action-btn.voice-btn:hover:not(:disabled) {
-  background: rgba(147, 51, 234, 0.3);
-  color: #c084fc;
-  transform: translateY(-1px);
-}
-
-.input-action-btn.voice-btn.listening {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  color: white;
-  animation: pulse 1.5s ease-in-out infinite;
-  border-color: rgba(239, 68, 68, 0.5);
-}
-
-.input-action-btn.send-btn {
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-  color: white;
-  border: 1px solid rgba(37, 99, 235, 0.3);
-}
-
-.input-action-btn.send-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
-}
-
-.input-action-btn:disabled {
+.action-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-/* Removed old input-actions and chat-input styles - replaced with chat-input-with-buttons */
+/* Voice Button */
+.voice-btn {
+  background: rgba(139, 92, 246, 0.2);
+  color: #a855f7;
+  border-color: rgba(139, 92, 246, 0.3);
+}
 
-/* Removed old voice-input-btn and send-btn styles - replaced with input-action-btn styles */
+.voice-btn:hover:not(:disabled) {
+  background: rgba(139, 92, 246, 0.3);
+  color: #c084fc;
+}
 
-/* Removed conversation-hints styles - hints section was removed */
+.voice-btn.active {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  border-color: rgba(239, 68, 68, 0.5);
+  animation: pulse 1.5s ease-in-out infinite;
+}
 
-/* Additional pulse animation for voice input */
+.voice-btn.disabled {
+  background: rgba(107, 114, 128, 0.2);
+  color: #6b7280;
+  border-color: rgba(107, 114, 128, 0.3);
+}
+
+/* Send Button */
+.send-btn {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: white;
+  border-color: rgba(37, 99, 235, 0.3);
+}
+
+.send-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+  box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
+}
+
 @keyframes pulse {
   0% {
     transform: scale(1);
@@ -339,58 +360,15 @@
 }
 
 /* Live Voice Mode Styles */
-.live-voice-toggle {
-  padding: 6px 12px;
-  background: #3e3e42;
-  color: #9ca3af;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.live-voice-toggle:hover:not(:disabled) {
-  background: #4e4e52;
-  color: #e0e0e0;
-  transform: translateY(-1px);
-}
-
-.live-voice-toggle.active {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  color: white;
-  box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
-  animation: livePulse 2s ease-in-out infinite;
-}
-
-.live-voice-toggle:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-@keyframes livePulse {
-  0%,
-  100% {
-    box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 30px rgba(239, 68, 68, 0.6);
-  }
-}
-
-/* Live Voice Status Bar */
 .live-voice-status {
   padding: 12px 20px;
-  background: #2d2d30;
-  border-bottom: 2px solid #3e3e42;
+  background: rgba(255, 255, 255, 0.05);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
   display: flex;
   flex-direction: column;
   gap: 8px;
   transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
 }
 
 .live-voice-status.listening {
@@ -496,15 +474,17 @@
 }
 
 .live-transcript {
-  padding: 10px 12px;
+  padding: 12px 16px;
   background: rgba(59, 130, 246, 0.1);
   border-left: 3px solid #3b82f6;
-  border-radius: 4px;
+  border-radius: 8px;
   color: #e0e0e0;
   font-size: 13px;
   font-style: italic;
   min-height: 40px;
   animation: fadeIn 0.2s ease-in;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(59, 130, 246, 0.2);
 }
 
 /* Live Voice Mode Input */
@@ -514,9 +494,10 @@
   justify-content: space-between;
   padding: 16px;
   background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.05) 100%);
-  border: 2px solid rgba(239, 68, 68, 0.3);
-  border-radius: 8px;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 12px;
   animation: fadeIn 0.3s ease-in;
+  backdrop-filter: blur(10px);
 }
 
 .live-mode-message {
@@ -547,11 +528,12 @@
   background: rgba(239, 68, 68, 0.2);
   color: #ef4444;
   border: 1px solid rgba(239, 68, 68, 0.4);
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   transition: all 0.2s;
+  backdrop-filter: blur(10px);
 }
 
 .exit-live-mode-btn:hover {
@@ -560,12 +542,44 @@
   transform: translateY(-1px);
 }
 
-@keyframes pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
   }
-  50% {
-    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
+}
+
+/* Voice Button State Styles */
+.voice-btn.listening {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  border-color: rgba(239, 68, 68, 0.3);
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+  animation: recordPulse 1.5s ease-in-out infinite;
+}
+
+.voice-btn.live {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border-color: rgba(16, 185, 129, 0.3);
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+  animation: livePulse 2s ease-in-out infinite;
+}
+
+.voice-btn.processing {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+  border-color: rgba(245, 158, 11, 0.3);
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+}
+
+.voice-btn-text {
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 4px;
+  letter-spacing: 0.5px;
 }
