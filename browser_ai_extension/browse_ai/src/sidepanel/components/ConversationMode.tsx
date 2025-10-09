@@ -29,6 +29,7 @@ interface ConversationModeProps {
   setMessages: (messages: Message[]) => void
   intent: Intent | null
   setIntent: (intent: Intent | null) => void
+  onSwitchToAgent?: () => void
 }
 
 export const ConversationMode = ({
@@ -40,6 +41,7 @@ export const ConversationMode = ({
   setMessages,
   intent,
   setIntent,
+  onSwitchToAgent
 }: ConversationModeProps) => {
   const [input, setInput] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
@@ -387,6 +389,10 @@ export const ConversationMode = ({
     setIntent(null)
     textToSpeech.stop()
     lastSpokenIndexRef.current = -1
+    // Switch to agent mode after reset
+    if (onSwitchToAgent) {
+      onSwitchToAgent()
+    }
   }
 
   const toggleSpeech = () => {
@@ -475,37 +481,15 @@ export const ConversationMode = ({
             >
               {isSpeaking ? (
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M3 9V15M9 5V19M15 9V15M21 5V19"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                  />
+                  <path d="M3 9V15M9 5V19M15 9V15M21 5V19" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                 </svg>
               ) : (
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M11 5L6 9H2V15H6L11 19V5Z"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinejoin="round"
-                  />
+                  <path d="M11 5L6 9H2V15H6L11 19V5Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
                   {isSpeechEnabled && (
                     <>
-                      <path
-                        d="M15.54 8.46C16.4774 9.39764 17.0039 10.6692 17.0039 11.995C17.0039 13.3208 16.4774 14.5924 15.54 15.53"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                      <path
-                        d="M19.07 4.93C20.9447 6.80528 21.9979 9.34836 21.9979 12C21.9979 14.6516 20.9447 17.1947 19.07 19.07"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
+                      <path d="M15.54 8.46C16.4774 9.39764 17.0039 10.6692 17.0039 11.995C17.0039 13.3208 16.4774 14.5924 15.54 15.53" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M19.07 4.93C20.9447 6.80528 21.9979 9.34836 21.9979 12C21.9979 14.6516 20.9447 17.1947 19.07 19.07" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                     </>
                   )}
                 </svg>
@@ -555,7 +539,6 @@ export const ConversationMode = ({
           {liveTranscript && <div className="live-transcript">{liveTranscript}</div>}
         </div>
       )}
-
       <div className="messages-container">
         {messages.map((msg, idx) => renderMessage(msg, idx))}
         {isProcessing && (
@@ -587,8 +570,9 @@ export const ConversationMode = ({
       )}
 
       <div className="input-container">
-        {voiceError && <div className="voice-error-message">{voiceError}</div>}
-
+        {voiceError && (
+          <div className="voice-error-message">{voiceError}</div>
+        )}
         {isLiveVoiceMode ? (
           <div className="live-voice-mode-input">
             <div className="live-mode-message">
@@ -608,59 +592,49 @@ export const ConversationMode = ({
             </button>
           </div>
         ) : (
-          <div className="input-wrapper">
-            <textarea
-              className="chat-input"
-              value={input + (interimTranscript ? ' ' + interimTranscript : '')}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                isProcessing
-                  ? 'Assistant is typing...'
+        <div className="input-wrapper">
+          <textarea
+            className="chat-input"
+            value={input + (interimTranscript ? ' ' + interimTranscript : '')}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={isProcessing ? "Assistant is typing..." : isListening ? "🎤 Listening..." : "Type your message... (Ctrl+Enter to send)"}
+            rows={3}
+            disabled={!connected || isProcessing}
+          />
+          <div className="input-actions">
+            <button
+              className={`voice-input-btn ${isListening ? 'listening' : ''} ${!voiceRecognition.isRecognitionSupported() ? 'unsupported' : ''}`}
+              onClick={toggleVoiceInput}
+              disabled={!connected || isProcessing || !voiceRecognition.isRecognitionSupported()}
+              title={
+                !voiceRecognition.isRecognitionSupported()
+                  ? 'Voice input not supported in CDP mode - use regular Chrome'
                   : isListening
-                    ? '🎤 Listening...'
-                    : 'Type your message... (Ctrl+Enter to send)'
+                    ? 'Stop listening'
+                    : 'Start voice input'
               }
-              rows={3}
-              disabled={!connected || isProcessing}
-            />
-            <div className="input-actions">
-              <button
-                className={`voice-input-btn ${isListening ? 'listening' : ''} ${!voiceRecognition.isRecognitionSupported() ? 'unsupported' : ''}`}
-                onClick={toggleVoiceInput}
-                disabled={!connected || isProcessing || !voiceRecognition.isRecognitionSupported()}
-                title={
-                  !voiceRecognition.isRecognitionSupported()
-                    ? 'Voice input not supported in CDP mode - use regular Chrome'
-                    : isListening
-                      ? 'Stop listening'
-                      : 'Start voice input'
-                }
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  {isListening ? (
-                    <rect x="6" y="6" width="12" height="12" fill="currentColor" />
-                  ) : (
-                    <path
-                      d="M12 14C13.66 14 15 12.66 15 11V5C15 3.34 13.66 2 12 2C10.34 2 9 3.34 9 5V11C9 12.66 10.34 14 12 14ZM17.91 11C17.91 14.39 15.16 17.14 11.77 17.14C8.38 17.14 5.63 14.39 5.63 11H4C4 14.93 7.04 18.16 10.86 18.71V22H13.14V18.71C16.96 18.16 20 14.93 20 11H17.91Z"
-                      fill="currentColor"
-                    />
-                  )}
-                </svg>
-              </button>
-              <button
-                className="send-btn"
-                onClick={handleSendMessage}
-                disabled={!input.trim() || !connected || isProcessing}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                  <path d="M2 21L23 12L2 3V10L17 12L2 14V21Z" fill="currentColor" />
-                </svg>
-                Send
-              </button>
-            </div>
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                {isListening ? (
+                  <rect x="6" y="6" width="12" height="12" fill="currentColor" />
+                ) : (
+                  <path d="M12 14C13.66 14 15 12.66 15 11V5C15 3.34 13.66 2 12 2C10.34 2 9 3.34 9 5V11C9 12.66 10.34 14 12 14ZM17.91 11C17.91 14.39 15.16 17.14 11.77 17.14C8.38 17.14 5.63 14.39 5.63 11H4C4 14.93 7.04 18.16 10.86 18.71V22H13.14V18.71C16.96 18.16 20 14.93 20 11H17.91Z" fill="currentColor" />
+                )}
+              </svg>
+            </button>
+            <button
+              className="send-btn"
+              onClick={handleSendMessage}
+              disabled={!input.trim() || !connected || isProcessing}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M2 21L23 12L2 3V10L17 12L2 14V21Z" fill="currentColor" />
+              </svg>
+              Send
+            </button>
           </div>
-        )}
+        </div>
       </div>
 
       <div className="conversation-hints">

@@ -1,13 +1,9 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { io, Socket } from 'socket.io-client'
 
-// import './SidePanel.css'
 import { ChatInput } from './components/ChatInput'
-import { ConversationMode } from './components/ConversationMode'
-import { ExecutionLog, LogEvent } from './components/ExecutionLog'
-import { ControlButtons, ControlButtonsProps } from './components/ControlButtons'
-import { TaskStatus, TaskStatusProps } from './components/TaskStatus'
 import { ChatMessages, ChatMessage } from './components/ChatMessages'
+import { ConversationMode, Message, Intent } from './components/ConversationMode'
 import {
   TaskStatus as ProtocolTaskStatus,
   StartTaskPayload,
@@ -17,7 +13,7 @@ import {
   MAX_RECONNECTION_ATTEMPTS,
   RECONNECTION_DELAY_MS,
 } from '../types/protocol'
-import { loadSettings, onSettingsChanged, formatTimestamp, openOptionsPage } from '../utils/helpers'
+import { loadSettings, onSettingsChanged, openOptionsPage } from '../utils/helpers'
 import {
   loadTaskStatus,
   saveTaskStatus,
@@ -28,8 +24,6 @@ import {
   saveConversationMessages,
   loadConversationIntent,
   saveConversationIntent,
-  ConversationMessage,
-  ConversationIntent,
 } from '../utils/state'
 
 export const SidePanel = () => {
@@ -37,6 +31,19 @@ export const SidePanel = () => {
   const [connected, setConnected] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isTyping, setIsTyping] = useState(false)
+  
+  // Mode states
+  const [conversationMode, setConversationMode] = useState(true) // Toggle between chat and agent mode
+  const [conversationMessages, setConversationMessages] = useState<Message[]>([])
+  const [conversationIntent, setConversationIntent] = useState<Intent | null>(null)
+
+  // Debug logging for mode changes
+  useEffect(() => {
+    console.log('🚀 useEffect: Mode changed to:', conversationMode ? 'Chat Mode' : 'Agent Mode')
+  }, [conversationMode])
+
+  // Force re-render test
+  const [renderKey, setRenderKey] = useState(0)
 
   // Add scrollbar styles (hidden)
   useEffect(() => {
@@ -59,6 +66,7 @@ export const SidePanel = () => {
       }
     }
   }, [])
+
   const [taskStatus, setTaskStatus] = useState<ProtocolTaskStatus>({
     is_running: false,
     current_task: null,
@@ -67,11 +75,6 @@ export const SidePanel = () => {
   })
   const [settings, setSettings] = useState<ExtensionSettings>(DEFAULT_SETTINGS)
   const [cdpEndpoint, setCdpEndpoint] = useState('')
-  const [taskResult, setTaskResult] = useState<string | null>(null)
-  const [conversationMode, setConversationMode] = useState(true) // Enable conversation mode by default
-  const [conversationMessages, setConversationMessages] = useState<ConversationMessage[]>([])
-  const [conversationIntent, setConversationIntent] = useState<ConversationIntent | null>(null)
-  const logsEndRef = useRef<HTMLDivElement>(null)
   const socketRef = useRef<Socket | null>(null)
 
   // Load settings and persisted task status on mount
@@ -106,14 +109,14 @@ export const SidePanel = () => {
     })
 
     // Load persisted conversation state
-    loadConversationMessages().then((messages) => {
-      if (isMounted) {
-        setConversationMessages(messages)
+    loadConversationMessages().then((msgs) => {
+      if (isMounted && msgs) {
+        setConversationMessages(msgs)
       }
     })
 
     loadConversationIntent().then((intent) => {
-      if (isMounted) {
+      if (isMounted && intent) {
         setConversationIntent(intent)
       }
     })
@@ -157,14 +160,43 @@ export const SidePanel = () => {
     saveConversationIntent(conversationIntent)
   }, [conversationIntent])
 
-  // Shared helper for bounded log append
-  const appendBoundedLog = useCallback(
-    (prev: LogEvent[], event: LogEvent) => {
-      const updated = [...prev, event]
-      return updated.length > settings.maxLogs ? updated.slice(-settings.maxLogs) : updated
-    },
-    [settings.maxLogs],
-  )
+  // Helper function to check if message is JSON-like technical output
+  const isJsonTechnicalMessage = useCallback((content: string): boolean => {
+    // Filter out JSON action results
+    if (content.includes('🛠️') && content.includes('Action') && content.includes('{"')) {
+      return true
+    }
+    
+    // Filter out pure JSON responses
+    if (content.trim().startsWith('{') && content.trim().endsWith('}')) {
+      try {
+        JSON.parse(content.trim())
+        return true
+      } catch {
+        return false
+      }
+    }
+    
+    // Filter out technical log messages with JSON
+    if (content.includes('{"done":') || content.includes('{"success":') || content.includes('{"error":')) {
+      return true
+    }
+    
+    // Filter out "Starting task" messages
+    if (content.includes('Starting task:')) {
+      return true
+    }
+    
+    return false
+  }, [])
+
+  // Add message to chat
+  const addMessage = useCallback(
+    (content: string, type: 'user' | 'assistant' | 'system' = 'system') => {
+      // Skip JSON technical messages
+      if (type !== 'user' && isJsonTechnicalMessage(content)) {
+        return
+      }
 
       const message: ChatMessage = {
         id: Date.now().toString(),
@@ -398,7 +430,7 @@ export const SidePanel = () => {
   const getCdpEndpoint = async () => {
     const endpoint = 'http://localhost:9222'
     setCdpEndpoint(endpoint)
-    addSystemLog('Using local CDP endpoint: http://localhost:9222', 'INFO')
+    addSystemMessage('Using local CDP endpoint: http://localhost:9222', 'INFO')
     return endpoint
   }
 
@@ -534,10 +566,12 @@ function getLastDoneText(agentHistoryString: string): string | null {
         const resultMessage = `Task "${result.task}" ${
           result.success ? 'completed successfully' : 'failed'
         }: ${agentHistory}`
-        setTaskResult(agentHistory)
+        if (agentHistory) {
+          replaceLoadingMessage(agentHistory)
+        }
       } catch (error) {
         console.error('Failed to parse AgentHistoryList:', error)
-        addSystemLog('Error parsing task result metadata', 'ERROR')
+        addSystemMessage('Error parsing task result metadata', 'ERROR')
       }
       if (result.task === null) return
       console.log('Task result received:', result)
@@ -554,7 +588,7 @@ function getLastDoneText(agentHistoryString: string): string | null {
   }, [socket])
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-b from-[#020617] to-[#0a0f2c] text-white relative overflow-hidden before:absolute before:inset-0 before:bg-[radial-gradient(ellipse_at_center,_rgba(33,150,243,0.15)_0%,_rgba(33,150,243,0.05)_40%,_transparent_70%)] before:pointer-events-none before:-z-10">
+    <div key={renderKey} className="flex flex-col h-screen bg-gradient-to-b from-[#020617] to-[#0a0f2c] text-white relative overflow-hidden before:absolute before:inset-0 before:bg-[radial-gradient(ellipse_at_center,_rgba(33,150,243,0.15)_0%,_rgba(33,150,243,0.05)_40%,_transparent_70%)] before:pointer-events-none before:-z-10">
       {/* Curved neon top highlight line */}
       <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#2196f3] to-transparent shadow-[0_0_10px_#2196f3] -z-10" />
       <div className="absolute top-[2px] left-[10%] right-[10%] h-[1px] bg-gradient-to-r from-transparent via-[#2196f3]/60 to-transparent blur-sm -z-10" />
@@ -574,27 +608,6 @@ function getLastDoneText(agentHistoryString: string): string | null {
               <h1 className="text-sm font-semibold text-white">Browser.AI</h1>
             </div>
           </div>
-          <div className="header-actions">
-            <button 
-              className={`mode-toggle ${conversationMode ? 'active' : ''}`}
-              onClick={() => setConversationMode(!conversationMode)}
-              title={conversationMode ? "Switch to Direct Mode" : "Switch to Conversation Mode"}
-              style={{ paddingLeft: '6px', paddingRight: '6px' }}
-            >
-              {conversationMode ? '💬' : '⚡'}
-            </button>
-            <button className="settings-button" onClick={openOptionsPage} title="Settings">
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path
-                  d="M10 6.5C8.067 6.5 6.5 8.067 6.5 10C6.5 11.933 8.067 13.5 10 13.5C11.933 13.5 13.5 11.933 13.5 10C13.5 8.067 11.933 6.5 10 6.5Z"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                />
-                <path
-                  d="M17.5 10C17.5 10.233 17.49 10.464 17.471 10.692L18.935 11.809C19.082 11.925 19.135 12.129 19.058 12.304L17.508 15.196C17.431 15.371 17.242 15.453 17.056 15.402L15.341 14.839C14.995 15.111 14.616 15.344 14.21 15.531L13.964 17.312C13.939 17.503 13.773 17.647 13.579 17.647H10.479C10.285 17.647 10.119 17.503 10.094 17.312L9.848 15.531C9.442 15.344 9.063 15.111 8.717 14.839L7.002 15.402C6.816 15.453 6.627 15.371 6.55 15.196L5 12.304C4.923 12.129 4.976 11.925 5.123 11.809L6.587 10.692C6.568 10.464 6.558 10.233 6.558 10C6.558 9.767 6.568 9.536 6.587 9.308L5.123 8.191C4.976 8.075 4.923 7.871 5 7.696L6.55 4.804C6.627 4.629 6.816 4.547 7.002 4.598L8.717 5.161C9.063 4.889 9.442 4.656 9.848 4.469L10.094 2.688C10.119 2.497 10.285 2.353 10.479 2.353H13.579C13.773 2.353 13.939 2.497 13.964 2.688L14.21 4.469C14.616 4.656 14.995 4.889 15.341 5.161L17.056 4.598C17.242 4.547 17.431 4.629 17.508 4.804L19.058 7.696C19.135 7.871 19.082 8.075 18.935 8.191L17.471 9.308C17.49 9.536 17.5 9.767 17.5 10Z"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                />
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 px-2 py-1 bg-white/5 border border-white/10 rounded-full">
               <span className={`w-1.5 h-1.5 rounded-full transition-all ${connected 
@@ -603,6 +616,63 @@ function getLastDoneText(agentHistoryString: string): string | null {
               }`}></span>
               <span className="text-xs text-white">{connected ? 'Online' : 'Offline'}</span>
             </div>
+            <button 
+              className={`flex items-center justify-center w-8 h-8 border rounded-lg text-white transition-all duration-300 hover:scale-105 ${
+                conversationMode 
+                  ? 'bg-gradient-to-r from-[#2196f3] to-[#1976d2] border-blue-400/30 shadow-lg shadow-blue-500/30' 
+                  : 'bg-gradient-to-r from-[#9c27b0] to-[#7b1fa2] border-purple-400/30 shadow-lg shadow-purple-500/30'
+              }`}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('🔄 Toggle clicked! Current mode:', conversationMode ? 'Chat' : 'Agent');
+                console.log('🔄 Switching to:', !conversationMode ? 'Chat' : 'Agent');
+                setConversationMode(prev => {
+                  console.log('🔄 State changing from:', prev, 'to:', !prev);
+                  return !prev;
+                });
+                setRenderKey(prev => prev + 1);
+              }} 
+              title={conversationMode ? "Switch to Agent Mode" : "Switch to Chat Mode"}
+            >
+              {conversationMode ? (
+                // Chat Mode Icon - Message bubble
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                  <circle cx="9" cy="10" r="1" fill="currentColor"/>
+                  <circle cx="15" cy="10" r="1" fill="currentColor"/>
+                </svg>
+              ) : (
+                // Agent Mode Icon - Robot/AI
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <circle cx="12" cy="5" r="2"/>
+                  <path d="M12 7v4"/>
+                  <line x1="8" y1="16" x2="8" y2="16"/>
+                  <line x1="16" y1="16" x2="16" y2="16"/>
+                </svg>
+              )}
+            </button>
+            {conversationMode && (
+              <button 
+                className="flex items-center justify-center w-7 h-7 bg-white/5 border border-white/10 rounded-md text-white hover:bg-white/10 transition-colors" 
+                onClick={() => {
+                  if (socket) {
+                    socket.emit('reset_conversation');
+                  }
+                  setConversationIntent(null);
+                  setConversationMessages([]);
+                }} 
+                title="Reset Conversation"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                  <path d="M21 3v5h-5"/>
+                  <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+                  <path d="M3 21v-5h5"/>
+                </svg>
+              </button>
+            )}
             <button 
               className="flex items-center justify-center w-7 h-7 bg-white/5 border border-white/10 rounded-md text-white hover:bg-white/10 transition-colors" 
               onClick={clearMessages} 
@@ -626,73 +696,47 @@ function getLastDoneText(agentHistoryString: string): string | null {
         </div>
       </header>
 
-      {/* Main Content */}
-      <div className="sidepanel-content">
-        {conversationMode ? (
-          /* Conversation Mode - Chat with AI to clarify intent */
-          <ConversationMode 
-            socket={socket}
-            connected={connected}
-            onStartTask={handleStartTask}
-            cdpEndpoint={cdpEndpoint}
-            messages={conversationMessages}
-            setMessages={setConversationMessages}
-            intent={conversationIntent}
-            setIntent={setConversationIntent}
-          />
-        ) : (
-          /* Direct Mode - Traditional logs and controls */
-          <>
-            {/* Task Status Banner */}
-            <TaskStatus {...taskStatusProps} />
-
-            {/* Control Buttons */}
-            <ControlButtons {...controlButtonsProps} />
-
-            {/* Execution Logs */}
-            <ExecutionLog logs={logs} onClear={clearLogs} devMode={settings.devMode} />
-
-            {/* Task Result */}
-            {taskResult && (
-              <div className="task-result">
-                <h3>Task Result</h3>
-                <p>{taskResult}</p>
-              </div>
-            )}
-            
-            {/* Chat Input at Bottom for Direct Mode */}
-            <div className="sidepanel-footer">
-              <ChatInput
-                onSendMessage={handleStartTask}
-                disabled={taskStatus.is_running}
-                placeholder="What would you like me to automate? (e.g., 'Search for Python tutorials')"
-              />
-            </div>
-          </>
-        )}
-      </div>
-      {/* Chat Messages Area */}
-      <div className="flex-1 flex flex-col relative z-10 min-h-0">
-        <div className="flex-1 min-h-0">
-          <ChatMessages messages={messages} isTyping={isTyping} />
-        </div>
-      </div>
-
-      {/* Chat Input at Bottom */}
-      <div className="relative z-10 p-3">
-        <ChatInput
-          onSendMessage={handleStartTask}
-          onStopTask={handleStopTask}
-          onPauseTask={handlePauseTask}
-          onResumeTask={handleResumeTask}
-          isRunning={taskStatus.is_running}
-          isPaused={taskStatus.is_paused}
-          disabled={false}
-          placeholder="What would you like me to automate? (e.g., 'Search for Python tutorials')"
+      {conversationMode ? (
+        /* Conversation Mode - Chat with AI to clarify intent */
+        <ConversationMode 
+          socket={socket}
+          connected={connected}
+          onStartTask={handleStartTask}
+          cdpEndpoint={cdpEndpoint}
+          messages={conversationMessages}
+          setMessages={setConversationMessages}
+          intent={conversationIntent}
+          setIntent={setConversationIntent}
+          onSwitchToAgent={() => setConversationMode(false)}
         />
-      </div>
+      ) : (
+        /* Agent Mode - Direct task execution */
+        <>
+          {/* Chat Messages Area */}
+          <div className="flex-1 flex flex-col relative z-10 min-h-0">
+            <div className="flex-1 min-h-0">
+              <ChatMessages messages={messages} isTyping={isTyping} />
+            </div>
+          </div>
+
+          {/* Chat Input at Bottom */}
+          <div className="relative z-10 p-3">
+            <ChatInput
+              onSendMessage={handleStartTask}
+              onStopTask={handleStopTask}
+              onPauseTask={handlePauseTask}
+              onResumeTask={handleResumeTask}
+              isRunning={taskStatus.is_running}
+              isPaused={taskStatus.is_paused}
+              disabled={false}
+              placeholder="What would you like me to automate? (e.g., 'Search for Python tutorials')"
+            />
+          </div>
+        </>
+      )}
     </div>
   )
 }
 
 export default SidePanel
+
