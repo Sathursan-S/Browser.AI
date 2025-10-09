@@ -5,8 +5,9 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell',
+    'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-width: 20rem;
@@ -35,7 +36,56 @@ body {
 .subtitle {
   font-size: 16px;
   color: #666;
-  margin: 0;
+  margin: 0 0 12px 0;
+}
+
+.connection-status {
+  font-size: 14px;
+  font-weight: 500;
+  margin-top: 8px;
+}
+
+.settings-tabs {
+  display: flex;
+  background: rgba(255, 255, 255, 0.9);
+  border-bottom: 2px solid #e2e8f0;
+  padding: 0 48px;
+  gap: 0;
+}
+
+.tab-button {
+  background: transparent;
+  border: none;
+  padding: 16px 24px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.tab-button:hover {
+  color: #667eea;
+  background: rgba(102, 126, 234, 0.05);
+}
+
+.tab-button.active {
+  color: #667eea;
+  border-bottom-color: #667eea;
+  background: rgba(102, 126, 234, 0.1);
+}
+
+.tab-button:disabled {
+  color: #cbd5e1;
+  cursor: not-allowed;
+  background: transparent;
+}
+
+.tab-button:disabled:hover {
+  color: #cbd5e1;
+  background: transparent;
 }
 
 .options-content {
@@ -147,6 +197,43 @@ body {
 .checkbox-description {
   font-size: 13px;
   color: #666;
+}
+
+.input-with-button {
+  display: flex;
+  gap: 8px;
+}
+
+.input-with-button .input-text {
+  flex: 1;
+}
+
+.input-with-button .btn {
+  padding: 12px 16px;
+  white-space: nowrap;
+  min-width: auto;
+}
+
+.input-select {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.input-select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.input-select option {
+  padding: 8px;
 }
 
 .settings-actions {
