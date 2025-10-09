@@ -1,8 +1,6 @@
-import { useState, useEffect } from 'react'
-import './ChatInput.css'
-import { voiceRecognition } from '../../services/VoiceRecognition'
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '../../ui/Button'
+import { voiceRecognition } from '../../services/VoiceRecognition'
 
 interface ChatInputProps {
   onSendMessage: (message: string) => void
@@ -13,33 +11,15 @@ interface ChatInputProps {
   isRunning?: boolean
   isPaused?: boolean
   placeholder?: string
+  enableVoice?: boolean // Optional voice input toggle
 }
 
-export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask, disabled = false, isRunning = false, isPaused = false, placeholder }: ChatInputProps) => {
+export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask, disabled = false, isRunning = false, isPaused = false, placeholder, enableVoice = true }: ChatInputProps) => {
   const [input, setInput] = useState('')
   const [isFocused, setIsFocused] = useState(false)
   const [isListening, setIsListening] = useState(false)
   const [interimTranscript, setInterimTranscript] = useState('')
   const [voiceError, setVoiceError] = useState<string | null>(null)
-
-  // Initialize voice recognition
-  useEffect(() => {
-    const isSupported = voiceRecognition.isRecognitionSupported()
-    console.log('🎤 Voice Recognition Support Check:', isSupported)
-    
-    if (isSupported) {
-      voiceRecognition.initialize({
-        continuous: false,
-        interimResults: true,
-        language: 'en-US'
-      })
-      console.log('🎤 Voice Recognition Initialized')
-    } else {
-      console.warn('🎤 Voice Recognition not available - button will be hidden')
-    }
-
-    return () => {
-      voiceRecognition.cleanup()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Hide scrollbar styles
@@ -64,6 +44,31 @@ export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask
     }
   }, [])
 
+  // Initialize voice recognition
+  useEffect(() => {
+    if (enableVoice) {
+      const isSupported = voiceRecognition.isRecognitionSupported()
+      console.log('🎤 Voice Recognition Support Check:', isSupported)
+      
+      if (isSupported) {
+        voiceRecognition.initialize({
+          continuous: false,
+          interimResults: true,
+          language: 'en-US'
+        })
+        console.log('🎤 Voice Recognition Initialized')
+      } else {
+        console.warn('🎤 Voice Recognition not available - button will be hidden')
+      }
+    }
+
+    return () => {
+      if (enableVoice) {
+        voiceRecognition.cleanup()
+      }
+    }
+  }, [enableVoice])
+
   const handleSubmit = () => {
     if (isRunning && onStopTask) {
       onStopTask()
@@ -72,7 +77,6 @@ export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask
     } else if (input.trim() && !disabled) {
       onSendMessage(input.trim())
       setInput('')
-      setInterimTranscript('')
     }
   }
 
@@ -89,8 +93,9 @@ export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask
     }
   }
 
+  // Voice input handler
   const toggleVoiceInput = () => {
-    if (!voiceRecognition.isRecognitionSupported()) {
+    if (!enableVoice || !voiceRecognition.isRecognitionSupported()) {
       setVoiceError('Voice input not supported in this browser')
       return
     }
@@ -104,18 +109,13 @@ export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask
       // Start listening
       setVoiceError(null)
       setIsListening(true)
-      
+
       voiceRecognition.startListening(
         (result) => {
           if (result.isFinal) {
-            // Final result - append to input
-            setInput(prev => {
-              const newText = prev ? `${prev} ${result.transcript}` : result.transcript
-              return newText
-            })
+            setInput(prev => (prev + ' ' + result.transcript).trim())
             setInterimTranscript('')
           } else {
-            // Interim result - show as preview
             setInterimTranscript(result.transcript)
           }
         },
@@ -133,7 +133,6 @@ export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask
     }
   }
 
-  const displayText = input + (interimTranscript ? ` ${interimTranscript}` : '')
   // Auto-resize textarea
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value)
@@ -161,19 +160,23 @@ export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask
       <div className="flex items-end gap-2 p-2">
         <textarea
           ref={textareaRef}
-          className="flex-1 min-h-[32px] max-h-[120px] px-3 py-2 border-0 text-sm text-white bg-transparent resize-none outline-none placeholder-white/50 disabled:cursor-not-allowed disabled:text-white/50 leading-relaxed scrollbar-hide"
+          className={`flex-1 min-h-[32px] max-h-[120px] px-3 py-2 border-0 text-sm bg-transparent resize-none outline-none placeholder-white/50 disabled:cursor-not-allowed leading-relaxed scrollbar-hide ${
+            interimTranscript ? 'text-blue-400 italic' : 'text-white disabled:text-white/50'
+          }`}
           aria-label={placeholder || 'What would you like me to do?'}
-          value={displayText}
-          onChange={(e) => setInput(e.target.value)}
-          value={input}
+          value={interimTranscript || input}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           placeholder={
-            isRunning ? 'Task is running... Click Stop to cancel' : 
-            isPaused ? 'Task is paused... Click Resume to continue' : 
-            placeholder || 'What would you like me to do?'
+            disabled 
+              ? "Agent is running..." 
+              : isListening 
+              ? "Listening... Speak now or click the mic to stop"
+              : isRunning ? 'Task is running... Click Stop to cancel' : 
+              isPaused ? 'Task is paused... Click Resume to continue' : 
+              placeholder || 'What would you like me to do?'
           }
           rows={1}
           disabled={disabled || (isRunning && !isPaused)}
@@ -184,51 +187,33 @@ export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask
           }}
         />
         {voiceError && (
-          <div className="voice-error">{voiceError}</div>
+          <div className="absolute bottom-full left-0 right-0 mb-1 px-3 py-1 bg-red-500/20 border border-red-500/30 rounded-md text-xs text-red-400">
+            Voice error: {voiceError}
+          </div>
         )}
-        <div className="chat-input-footer">
-          <div className="chat-input-left">
-            <span className="chat-hint">
-              {disabled ? 'Task is running...' : isListening ? '🎤 Listening...' : 'Press Ctrl+Enter to send'}
-            </span>
-          </div>
-          <div className="chat-input-actions">
-            {/* Always show voice button - let it handle unsupported browsers */}
-            <button
-              className={`voice-btn ${isListening ? 'listening' : ''} ${!voiceRecognition.isRecognitionSupported() ? 'unsupported' : ''}`}
-              onClick={toggleVoiceInput}
-              disabled={disabled || !voiceRecognition.isRecognitionSupported()}
-              title={
-                !voiceRecognition.isRecognitionSupported() 
-                  ? 'Voice input not supported in CDP mode - use regular Chrome' 
-                  : isListening 
-                    ? 'Stop listening' 
-                    : 'Start voice input'
-              }
-              aria-label={isListening ? 'Stop listening' : 'Start voice input'}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                {isListening ? (
-                  // Stop icon
-                  <rect x="6" y="6" width="12" height="12" fill="currentColor" />
-                ) : (
-                  // Microphone icon
-                  <path d="M12 14C13.66 14 15 12.66 15 11V5C15 3.34 13.66 2 12 2C10.34 2 9 3.34 9 5V11C9 12.66 10.34 14 12 14ZM17.91 11C17.91 14.39 15.16 17.14 11.77 17.14C8.38 17.14 5.63 14.39 5.63 11H4C4 14.93 7.04 18.16 10.86 18.71V22H13.14V18.71C16.96 18.16 20 14.93 20 11H17.91Z" fill="currentColor" />
-                )}
-              </svg>
-            </button>
-            <button
-              className="chat-send-btn"
-              onClick={handleSubmit}
-              disabled={!input.trim() || disabled}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M2 21L23 12L2 3V10L17 12L2 14V21Z" fill="currentColor" />
-              </svg>
-              Send
-            </button>
-          </div>
         <div className="flex gap-1 shrink-0">
+          {enableVoice && voiceRecognition.isRecognitionSupported() && (
+            <Button
+              onClick={toggleVoiceInput}
+              disabled={disabled}
+              size="sm"
+              className={`w-8 h-8 p-0 transition-all duration-200 shadow-lg border ${
+                isListening
+                  ? 'bg-gradient-to-r from-[#f44336] to-[#d32f2f] hover:from-[#d32f2f] hover:to-[#c62828] text-white shadow-red-500/30 border-red-400/30 animate-pulse'
+                  : 'bg-gradient-to-r from-[#9c27b0] to-[#7b1fa2] hover:from-[#7b1fa2] hover:to-[#6a1b9a] text-white shadow-purple-500/30 border-purple-400/30'
+              }`}
+              title={isListening ? 'Stop listening' : 'Start voice input'}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                {isListening ? (
+                  <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
+                ) : (
+                  <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" fill="currentColor" />
+                )}
+                <path d="M19 10v1a7 7 0 0 1-14 0v-1m7 9v3m-3 0h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+              </svg>
+            </Button>
+          )}
           {isRunning && !isPaused && (
             <Button
               onClick={handlePause}
