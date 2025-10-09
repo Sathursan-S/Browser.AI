@@ -81,12 +81,12 @@ class TaskManager:
                         )
                     )
 
-                    self.event_adapter.emit_custom_event(
-                        EventType.AGENT_COMPLETE,
-                        f"Task completed successfully",
-                        LogLevel.INFO,
-                        {"result": str(result)},
-                    )
+                    # self.event_adapter.emit_custom_event(
+                    #     EventType.AGENT_COMPLETE,
+                    #     f"Task completed successfully",
+                    #     LogLevel.INFO,
+                    #     {"result": str(result)},
+                    # )
 
                 except Exception as e:
                     self.event_adapter.emit_custom_event(

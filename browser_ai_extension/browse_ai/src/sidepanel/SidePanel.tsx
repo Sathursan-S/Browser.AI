@@ -436,6 +436,46 @@ export const SidePanel = () => {
     [taskStatus.is_running, taskStatus.current_task, taskStatus.is_paused],
   )
 
+  /**
+ * Extracts the 'done' text from the last entry in the all_model_outputs list.
+ * @param agentHistoryString The raw string output from AgentHistoryList.
+ * @returns The extracted text string, or null if not found.
+ */
+function getLastDoneText(agentHistoryString: string): string | null {
+  // 1. Isolate the string content of the 'all_model_outputs' array
+  const match = agentHistoryString.match(/all_model_outputs=\[(.*)\]\)/);
+  if (!match || !match[1]) {
+    console.error("Could not find 'all_model_outputs' in the string.");
+    return null;
+  }
+
+  // 2. Convert the Python-like string into a valid JSON string
+  const jsonString = `[${match[1]}]`
+    .replace(/'/g, '"') // Replace single quotes with double quotes
+    .replace(/None/g, "null") // Replace Python's None with JSON's null
+    .replace(/True/g, "true") // Replace Python's True with JSON's true
+    .replace(/False/g, "false"); // Replace Python's False with JSON's false
+
+  try {
+    // 3. Parse the cleaned string into a JavaScript array
+    const allModelOutputs = JSON.parse(jsonString);
+
+    // 4. Get the last object from the array
+    const lastOutput = allModelOutputs[allModelOutputs.length - 1];
+
+    // 5. Check for the 'done.text' property and return it
+    if (lastOutput && lastOutput.done && typeof lastOutput.done.text === 'string') {
+      return lastOutput.done.text;
+    }
+  } catch (error) {
+    console.error("Failed to parse JSON string:", error);
+    return null;
+  }
+
+  return null; // Return null if the structure isn't as expected
+}
+
+
   // Listen for task result
   useEffect(() => {
     if (!socket) return
@@ -445,13 +485,25 @@ export const SidePanel = () => {
       success: boolean
       history: string | null
     }) => {
-      if (result.task === null) return
-      console.log('Task result received:', result)
-      if (result.history) {
-        addSystemLog(`Task history: ${result.history}`, 'DEBUG')
+      if (!result.history && result.task !== null) return
+
+      try {
+        const agentHistory = getLastDoneText(result.history ? result.history : '')
+        // console.log('Parsed AgentHistoryList:', agentHistory)
+
+        // const extractedContents = agentHistory.all_results.map(
+        //   (action: { extracted_content: string }) => action.extracted_content,
+        // )
+        // console.log('Extracted Contents:', extractedContents)r
+
+        const resultMessage = `Task "${result.task}" ${
+          result.success ? 'completed successfully' : 'failed'
+        }: ${agentHistory}`
+        setTaskResult(agentHistory)
+      } catch (error) {
+        console.error('Failed to parse AgentHistoryList:', error)
+        addSystemLog('Error parsing task result metadata', 'ERROR')
       }
-      const resultMessage = `Task "${result.task}" ${result.success ? 'completed successfully' : 'failed'}`
-      setTaskResult(resultMessage)
     }
 
     socket.on('task_result', handleTaskResult)

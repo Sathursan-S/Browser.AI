@@ -148,6 +148,8 @@ export const ExecutionLog = ({ logs, onClear, devMode = false }: ExecutionLogPro
     // In dev mode, return original message
     if (devMode) return log.message
 
+    console.log('Formatting user message:', log)
+
     const msg = log.message.toLowerCase()
 
     // Task lifecycle messages
@@ -155,7 +157,7 @@ export const ExecutionLog = ({ logs, onClear, devMode = false }: ExecutionLogPro
       return '🚀 Starting your automation task...'
     }
 
-    if (msg.includes('task completed') || msg.includes('✅')) {
+    if (msg.includes('task completed successfully')) {
       return '✅ Task completed successfully!'
     }
 
@@ -173,6 +175,10 @@ export const ExecutionLog = ({ logs, onClear, devMode = false }: ExecutionLogPro
 
     if (msg.includes('resuming') || msg.includes('▶️')) {
       return '▶️ Resuming task...'
+    }
+
+    if (msg.includes('result:') && log.level === 'INFO') {
+      return '📄 Result : ' + msg.split('result:')[1].trim()
     }
 
     // Step messages
