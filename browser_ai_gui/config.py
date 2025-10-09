@@ -54,8 +54,9 @@ class AgentConfig:
     max_steps: int = 200
     generate_gif: bool = True
     validate_output: bool = True
-    planner_llm: str = "gemini-2.5-flash-lite"
+    planner_llm: str = "gemini-flash-latest"
     page_extraction_llm: str = "gemini-2.5-flash-lite"
+    planner_interval: int = 3  # Run planner every N steps
 
 
 @dataclass
