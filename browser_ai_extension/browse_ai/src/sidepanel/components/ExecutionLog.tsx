@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
-import './ExecutionLog.css'
+import { Badge } from '../../ui/Badge'
+import { Button } from '../../ui/Button'
 
 export interface LogEvent {
   timestamp: string
@@ -242,10 +243,10 @@ export const ExecutionLog = ({ logs, onClear, devMode = false }: ExecutionLogPro
   const filteredLogs = logs.filter(shouldShowLog)
 
   return (
-    <div className="execution-log-container">
-      <div className="execution-log-header">
-        <div className="log-header-title">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+    <div className="flex flex-col h-full bg-white/5 border border-white/10 rounded-xl overflow-hidden backdrop-blur-sm">
+      <div className="flex items-center justify-between p-3 border-b border-white/5">
+        <div className="flex items-center gap-3 text-white/90">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="text-blue-400 drop-shadow-md">
             <path
               d="M12 2L2 7L12 12L22 7L12 2Z"
               stroke="currentColor"
@@ -268,11 +269,18 @@ export const ExecutionLog = ({ logs, onClear, devMode = false }: ExecutionLogPro
               strokeLinejoin="round"
             />
           </svg>
-          <h3>{devMode ? 'Developer Logs' : 'Activity'}</h3>
-          <span className="log-count">{filteredLogs.length}</span>
+          <h3 className="text-sm font-semibold">{devMode ? 'Developer Logs' : 'Activity'}</h3>
+          <Badge variant="info" className="text-xs">
+            {filteredLogs.length}
+          </Badge>
         </div>
         {onClear && filteredLogs.length > 0 && (
-          <button className="log-clear-btn" onClick={onClear}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClear}
+            className="gap-1 h-8 px-2"
+          >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
               <path
                 d="M6 18L18 6M6 6L18 18"
@@ -282,14 +290,14 @@ export const ExecutionLog = ({ logs, onClear, devMode = false }: ExecutionLogPro
               />
             </svg>
             Clear
-          </button>
+          </Button>
         )}
       </div>
 
-      <div className="execution-log-content" ref={containerRef}>
+      <div className="flex-1 overflow-y-auto p-3" ref={containerRef}>
         {filteredLogs.length === 0 ? (
-          <div className="log-empty-state">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+          <div className="flex flex-col items-center justify-center h-full p-10 text-center text-white/60">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" className="mb-4 opacity-50">
               <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" />
               <path
                 d="M12 8V12L14.5 14.5"
@@ -298,46 +306,72 @@ export const ExecutionLog = ({ logs, onClear, devMode = false }: ExecutionLogPro
                 strokeLinecap="round"
               />
             </svg>
-            <p>No activity yet</p>
-            <span>Start a task to see what's happening</span>
+            <p className="text-base font-semibold text-white/90 mb-2">No activity yet</p>
+            <span className="text-sm text-white/60">Start a task to see what's happening</span>
           </div>
         ) : (
-          <div className="log-entries">
-            {filteredLogs.map((log, index) => (
-              <div
-                key={`${log.timestamp}-${index}`}
-                className={`log-entry ${getLogLevelClass(log.level)} ${
-                  isStepLog(log.event_type) ? 'log-step-entry' : ''
-                } log-entry-animate log-entry-${Math.min(index, 5)}`}
-              >
-                <div className="log-entry-header">
-                  <span className="log-icon">{getEventIcon(log.event_type, log.level)}</span>
-                  <span className="log-timestamp">{formatTime(log.timestamp)}</span>
-                  {devMode && (
-                    <span className={`log-badge ${getLogLevelClass(log.level)}`}>{log.level}</span>
+          <div className="space-y-2">
+            {filteredLogs.map((log, index) => {
+              const levelColors = {
+                'ERROR': 'border-l-red-400 bg-red-500/5',
+                'WARNING': 'border-l-yellow-400 bg-yellow-500/5',
+                'RESULT': 'border-l-green-400 bg-green-500/5',
+                'INFO': 'border-l-blue-400 bg-blue-500/5',
+                'DEBUG': 'border-l-gray-400 bg-gray-500/5'
+              }
+              
+              const levelColor = levelColors[log.level as keyof typeof levelColors] || levelColors['INFO']
+              
+              return (
+                <div
+                  key={`${log.timestamp}-${index}`}
+                  className={`relative bg-white/5 border border-white/10 rounded-lg p-3 mb-2 transition-all hover:border-white/20 hover:shadow-lg hover:shadow-black/20 border-l-2 ${levelColor}`}
+                  style={{
+                    animationDelay: `${Math.min(index * 50, 250)}ms`,
+                    animation: 'slideIn 0.3s ease forwards'
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-base leading-none">{getEventIcon(log.event_type, log.level)}</span>
+                    <span className="text-xs font-mono text-white/60">{formatTime(log.timestamp)}</span>
+                    {devMode && (
+                      <Badge 
+                        variant={
+                          log.level === 'ERROR' ? 'error' :
+                          log.level === 'WARNING' ? 'warning' :
+                          log.level === 'RESULT' ? 'success' :
+                          log.level === 'INFO' ? 'info' : 'debug'
+                        }
+                        className="text-xs"
+                      >
+                        {log.level}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="text-sm text-white/90 leading-relaxed whitespace-pre-wrap">
+                    {formatUserMessage(log)}
+                  </div>
+                  {devMode && log.metadata && Object.keys(log.metadata).length > 0 && (
+                    <div className="mt-3 p-2 bg-white/5 border border-white/5 rounded text-xs font-mono">
+                      {Object.entries(log.metadata).map(([key, value]) => (
+                        <div key={key} className="flex gap-2 py-1">
+                          <span className="text-white/60 font-semibold">{key}:</span>
+                          <span className="text-white/90 break-all">
+                            {(() => {
+                              try {
+                                return JSON.stringify(value)
+                              } catch {
+                                return '[Unstringifiable value]'
+                              }
+                            })()}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
-                <div className="log-message">{formatUserMessage(log)}</div>
-                {devMode && log.metadata && Object.keys(log.metadata).length > 0 && (
-                  <div className="log-metadata">
-                    {Object.entries(log.metadata).map(([key, value]) => (
-                      <div key={key} className="metadata-item">
-                        <span className="metadata-key">{key}:</span>
-                        <span className="metadata-value">
-                          {(() => {
-                            try {
-                              return JSON.stringify(value)
-                            } catch {
-                              return '[Unstringifiable value]'
-                            }
-                          })()}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
+              )
+            })}
             <div ref={logsEndRef} />
           </div>
         )}
