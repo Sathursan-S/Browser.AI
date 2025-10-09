@@ -29,7 +29,7 @@ export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask
       .scrollbar-hide::-webkit-scrollbar {
         display: none;
       }
-      
+
       .scrollbar-hide {
         -ms-overflow-style: none;
         scrollbar-width: none;
@@ -49,7 +49,7 @@ export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask
     if (enableVoice) {
       const isSupported = voiceRecognition.isRecognitionSupported()
       console.log('🎤 Voice Recognition Support Check:', isSupported)
-      
+
       if (isSupported) {
         voiceRecognition.initialize({
           continuous: false,
@@ -136,7 +136,7 @@ export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask
   // Auto-resize textarea
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value)
-    
+
     // Auto-resize textarea
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
@@ -153,8 +153,8 @@ export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask
 
   return (
     <div className={`bg-white/10 border border-white/20 rounded-lg overflow-hidden transition-all duration-200 backdrop-blur-sm ${
-      isFocused 
-        ? 'border-white/30 shadow-lg shadow-black/20' 
+      isFocused
+        ? 'border-white/30 shadow-lg shadow-black/20'
         : 'shadow-md shadow-black/10'
     }`}>
       <div className="flex items-end gap-2 p-2">
@@ -170,17 +170,17 @@ export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           placeholder={
-            disabled 
-              ? "Agent is running..." 
-              : isListening 
+            disabled
+              ? "Agent is running..."
+              : isListening
               ? "Listening... Speak now or click the mic to stop"
-              : isRunning ? 'Task is running... Click Stop to cancel' : 
-              isPaused ? 'Task is paused... Click Resume to continue' : 
+              : isRunning ? 'Task is running... Click Stop to cancel' :
+              isPaused ? 'Task is paused... Click Resume to continue' :
               placeholder || 'What would you like me to do?'
           }
           rows={1}
           disabled={disabled || (isRunning && !isPaused)}
-          style={{ 
+          style={{
             height: 'auto',
             scrollbarWidth: 'none',
             msOverflowStyle: 'none'
@@ -232,7 +232,7 @@ export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask
             size="sm"
             className={`w-8 h-8 p-0 transition-all duration-200 shadow-lg border ${
               isRunning && !isPaused
-                ? 'bg-gradient-to-r from-[#f44336] to-[#d32f2f] hover:from-[#d32f2f] hover:to-[#c62828] text-white shadow-red-500/30 border-red-400/30' 
+                ? 'bg-gradient-to-r from-[#f44336] to-[#d32f2f] hover:from-[#d32f2f] hover:to-[#c62828] text-white shadow-red-500/30 border-red-400/30'
                 : isPaused
                 ? 'bg-gradient-to-r from-[#4caf50] to-[#388e3c] hover:from-[#388e3c] hover:to-[#2e7d32] text-white shadow-green-500/30 border-green-400/30'
                 : 'bg-gradient-to-r from-[#2196f3] to-[#1976d2] hover:from-[#1976d2] hover:to-[#1565c0] text-white shadow-blue-500/30 border-blue-400/30'

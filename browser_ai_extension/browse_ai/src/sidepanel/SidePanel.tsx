@@ -31,7 +31,7 @@ export const SidePanel = () => {
   const [connected, setConnected] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isTyping, setIsTyping] = useState(false)
-  
+
   // Mode states
   const [conversationMode, setConversationMode] = useState(true) // Toggle between chat and agent mode
   const [conversationMessages, setConversationMessages] = useState<Message[]>([])
@@ -52,7 +52,7 @@ export const SidePanel = () => {
       .chat-scroll::-webkit-scrollbar {
         display: none;
       }
-      
+
       .chat-scroll {
         -ms-overflow-style: none;
         scrollbar-width: none;
@@ -166,7 +166,7 @@ export const SidePanel = () => {
     if (content.includes('🛠️') && content.includes('Action') && content.includes('{"')) {
       return true
     }
-    
+
     // Filter out pure JSON responses
     if (content.trim().startsWith('{') && content.trim().endsWith('}')) {
       try {
@@ -176,17 +176,17 @@ export const SidePanel = () => {
         return false
       }
     }
-    
+
     // Filter out technical log messages with JSON
     if (content.includes('{"done":') || content.includes('{"success":') || content.includes('{"error":')) {
       return true
     }
-    
+
     // Filter out "Starting task" messages
     if (content.includes('Starting task:')) {
       return true
     }
-    
+
     return false
   }, [])
 
@@ -592,10 +592,10 @@ function getLastDoneText(agentHistoryString: string): string | null {
       {/* Curved neon top highlight line */}
       <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#2196f3] to-transparent shadow-[0_0_10px_#2196f3] -z-10" />
       <div className="absolute top-[2px] left-[10%] right-[10%] h-[1px] bg-gradient-to-r from-transparent via-[#2196f3]/60 to-transparent blur-sm -z-10" />
-      
+
       {/* Soft radial blue glow in center */}
       <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-[radial-gradient(ellipse,_rgba(33,150,243,0.1)_0%,_rgba(33,150,243,0.03)_50%,_transparent_100%)] blur-2xl opacity-80 pointer-events-none -z-10" />
-      
+
       {/* Header - Minimized */}
       <header className="relative z-10 px-3 py-2 border-b border-white/10 bg-white/5 backdrop-blur-sm">
         <div className="flex justify-between items-center">
@@ -605,21 +605,21 @@ function getLastDoneText(agentHistoryString: string): string | null {
               <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1" stroke="#667eea" strokeWidth="2" strokeLinecap="round" />
             </svg>
             <div>
-              <h1 className="text-sm font-semibold text-white">Browser.AI</h1>
+              <h1 className="text-sm font-semibold text-white">Browze.AI</h1>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 px-2 py-1 bg-white/5 border border-white/10 rounded-full">
-              <span className={`w-1.5 h-1.5 rounded-full transition-all ${connected 
-                ? 'bg-green-400 shadow-lg shadow-green-400/30 animate-pulse' 
+              <span className={`w-1.5 h-1.5 rounded-full transition-all ${connected
+                ? 'bg-green-400 shadow-lg shadow-green-400/30 animate-pulse'
                 : 'bg-red-400'
               }`}></span>
               <span className="text-xs text-white">{connected ? 'Online' : 'Offline'}</span>
             </div>
-            <button 
+            <button
               className={`flex items-center justify-center w-8 h-8 border rounded-lg text-white transition-all duration-300 hover:scale-105 ${
-                conversationMode 
-                  ? 'bg-gradient-to-r from-[#2196f3] to-[#1976d2] border-blue-400/30 shadow-lg shadow-blue-500/30' 
+                conversationMode
+                  ? 'bg-gradient-to-r from-[#2196f3] to-[#1976d2] border-blue-400/30 shadow-lg shadow-blue-500/30'
                   : 'bg-gradient-to-r from-[#9c27b0] to-[#7b1fa2] border-purple-400/30 shadow-lg shadow-purple-500/30'
               }`}
               onClick={(e) => {
@@ -632,7 +632,7 @@ function getLastDoneText(agentHistoryString: string): string | null {
                   return !prev;
                 });
                 setRenderKey(prev => prev + 1);
-              }} 
+              }}
               title={conversationMode ? "Switch to Agent Mode" : "Switch to Chat Mode"}
             >
               {conversationMode ? (
@@ -654,15 +654,15 @@ function getLastDoneText(agentHistoryString: string): string | null {
               )}
             </button>
             {conversationMode && (
-              <button 
-                className="flex items-center justify-center w-7 h-7 bg-white/5 border border-white/10 rounded-md text-white hover:bg-white/10 transition-colors" 
+              <button
+                className="flex items-center justify-center w-7 h-7 bg-white/5 border border-white/10 rounded-md text-white hover:bg-white/10 transition-colors"
                 onClick={() => {
                   if (socket) {
                     socket.emit('reset_conversation');
                   }
                   setConversationIntent(null);
                   setConversationMessages([]);
-                }} 
+                }}
                 title="Reset Conversation"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -673,18 +673,18 @@ function getLastDoneText(agentHistoryString: string): string | null {
                 </svg>
               </button>
             )}
-            <button 
-              className="flex items-center justify-center w-7 h-7 bg-white/5 border border-white/10 rounded-md text-white hover:bg-white/10 transition-colors" 
-              onClick={clearMessages} 
+            <button
+              className="flex items-center justify-center w-7 h-7 bg-white/5 border border-white/10 rounded-md text-white hover:bg-white/10 transition-colors"
+              onClick={clearMessages}
               title="Clear Chat"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
               </svg>
             </button>
-            <button 
-              className="flex items-center justify-center w-7 h-7 bg-white/5 border border-white/10 rounded-md text-white hover:bg-white/10 transition-colors" 
-              onClick={openOptionsPage} 
+            <button
+              className="flex items-center justify-center w-7 h-7 bg-white/5 border border-white/10 rounded-md text-white hover:bg-white/10 transition-colors"
+              onClick={openOptionsPage}
               title="Settings"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -698,7 +698,7 @@ function getLastDoneText(agentHistoryString: string): string | null {
 
       {conversationMode ? (
         /* Conversation Mode - Chat with AI to clarify intent */
-        <ConversationMode 
+        <ConversationMode
           socket={socket}
           connected={connected}
           onStartTask={handleStartTask}
