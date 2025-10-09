@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { io, Socket } from 'socket.io-client'
 
-import './SidePanel.css'
+// import './SidePanel.css'
 import { ChatInput } from './components/ChatInput'
 import { ConversationMode } from './components/ConversationMode'
 import { ExecutionLog, LogEvent } from './components/ExecutionLog'
 import { ControlButtons, ControlButtonsProps } from './components/ControlButtons'
 import { TaskStatus, TaskStatusProps } from './components/TaskStatus'
+import { ChatMessages, ChatMessage } from './components/ChatMessages'
 import {
   TaskStatus as ProtocolTaskStatus,
   StartTaskPayload,
@@ -34,7 +35,30 @@ import {
 export const SidePanel = () => {
   const [socket, setSocket] = useState<Socket | null>(null)
   const [connected, setConnected] = useState(false)
-  const [logs, setLogs] = useState<LogEvent[]>([])
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [isTyping, setIsTyping] = useState(false)
+
+  // Add scrollbar styles (hidden)
+  useEffect(() => {
+    const styleElement = document.createElement('style')
+    styleElement.textContent = `
+      .chat-scroll::-webkit-scrollbar {
+        display: none;
+      }
+      
+      .chat-scroll {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+    `
+    document.head.appendChild(styleElement)
+
+    return () => {
+      if (document.head.contains(styleElement)) {
+        document.head.removeChild(styleElement)
+      }
+    }
+  }, [])
   const [taskStatus, setTaskStatus] = useState<ProtocolTaskStatus>({
     is_running: false,
     current_task: null,
@@ -142,13 +166,47 @@ export const SidePanel = () => {
     [settings.maxLogs],
   )
 
-  // Add log to list with bounded size
-  const addLog = useCallback(
-    (event: LogEvent) => {
-      setLogs((prev) => appendBoundedLog(prev, event))
+      const message: ChatMessage = {
+        id: Date.now().toString(),
+        content,
+        type,
+        timestamp: new Date(),
+      }
+      setMessages((prev) => {
+        const updated = [...prev, message]
+        return updated.length > settings.maxLogs ? updated.slice(-settings.maxLogs) : updated
+      })
     },
-    [setLogs, appendBoundedLog],
+    [settings.maxLogs, isJsonTechnicalMessage],
   )
+
+  // Add loading message
+  const addLoadingMessage = useCallback(() => {
+    const message: ChatMessage = {
+      id: 'loading',
+      content: '',
+      type: 'assistant',
+      timestamp: new Date(),
+      isLoading: true,
+    }
+    setMessages((prev) => [...prev, message])
+    setIsTyping(true)
+  }, [])
+
+  // Remove loading message and add actual response
+  const replaceLoadingMessage = useCallback((content: string) => {
+    setIsTyping(false)
+    setMessages((prev) => {
+      const filtered = prev.filter(msg => msg.id !== 'loading')
+      const message: ChatMessage = {
+        id: Date.now().toString(),
+        content,
+        type: 'assistant',
+        timestamp: new Date(),
+      }
+      return [...filtered, message]
+    })
+  }, [])
 
   // Show notification popup
   const showNotificationPopup = useCallback(
@@ -173,25 +231,14 @@ export const SidePanel = () => {
     [settings.showNotifications],
   )
 
-  // Add system log (deduplicated)
-  const addSystemLog = useCallback(
+  // Add system message
+  const addSystemMessage = useCallback(
     (message: string, level: string = 'INFO') => {
-      const event: LogEvent = {
-        timestamp: new Date().toISOString(),
-        level,
-        logger_name: 'extension',
-        message,
-        event_type: 'LOG',
-      }
-      addLog(event)
+      const type = level === 'ERROR' ? 'system' : 'system'
+      addMessage(message, type)
     },
-    [addLog],
+    [addMessage],
   )
-
-  // Auto-scroll to bottom when new logs arrive
-  useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [logs])
 
   // Initialize socket connection - reconnect when settings change
   useEffect(() => {
@@ -238,8 +285,9 @@ export const SidePanel = () => {
       }
     })
 
-    newSocket.on('log_event', (event: LogEvent) => {
-      addLog(event)
+    newSocket.on('log_event', (event: any) => {
+      // Convert log events to chat messages
+      addMessage(event.message, 'assistant')
 
       // Show notification popup for user interaction events
       if (
@@ -253,17 +301,19 @@ export const SidePanel = () => {
       // Show notification for task completion
       if (event.message.includes('✅') || event.message.toLowerCase().includes('task completed')) {
         showNotificationPopup('task_complete', 'Task completed successfully!', event.message)
+        replaceLoadingMessage(event.message)
       }
 
       // Show notification for errors
       if (event.level === 'ERROR' && event.message.includes('❌')) {
         showNotificationPopup('error', 'An error occurred', event.message)
+        replaceLoadingMessage(event.message)
       }
     })
 
     newSocket.on('task_started', (data: { message: string }) => {
       console.log('Task started:', data.message)
-      addSystemLog(data.message, 'INFO')
+      addSystemMessage(data.message, 'INFO')
       newSocket.emit('get_status')
     })
 
@@ -276,10 +326,10 @@ export const SidePanel = () => {
           // Request updated status from server instead of updating locally
           newSocket.emit('get_status')
           if (result.message) {
-            addSystemLog(result.message, 'INFO')
+            replaceLoadingMessage(result.message)
           }
         } else if (result.error) {
-          addSystemLog(result.error, 'ERROR')
+          replaceLoadingMessage(result.error)
           // Also request status on error to ensure UI is in sync
           newSocket.emit('get_status')
         }
@@ -292,20 +342,16 @@ export const SidePanel = () => {
       (result: { task: string; success: boolean; history: string | null }) => {
         console.log('Task result received:', result)
         if (result.task !== null) {
-          addSystemLog(
-            `Task "${result.task}" ${result.success ? 'completed successfully' : 'failed'}`,
-            result.success ? 'INFO' : 'ERROR',
-          )
+          const message = `Task "${result.task}" ${result.success ? 'completed successfully' : 'failed'}`
+          replaceLoadingMessage(message)
         }
-        if (result.history) {
-          addSystemLog(`Task history: ${result.history}`, 'DEBUG')
-        }
+        // Remove task history from chat - keeping only the completion message
       },
     )
 
     newSocket.on('error', (data: { message: string }) => {
       console.error('Server error:', data.message)
-      addSystemLog(data.message, 'ERROR')
+      addSystemMessage(data.message, 'ERROR')
     })
 
     setSocket(newSocket)
@@ -314,7 +360,7 @@ export const SidePanel = () => {
     return () => {
       newSocket.close()
     }
-  }, [settings.serverUrl, settings.autoReconnect, addLog, showNotificationPopup, addSystemLog])
+  }, [settings.serverUrl, settings.autoReconnect, addMessage, replaceLoadingMessage, showNotificationPopup, addSystemMessage])
 
   // ❌ NOT NEEDED FOR LOCAL PLAYWRIGHT SETUP
   // This function was for extension-proxy mode where CDP endpoint is fetched dynamically
@@ -341,7 +387,7 @@ export const SidePanel = () => {
       }
     } catch (error) {
       console.error('Failed to get CDP endpoint:', error)
-      addSystemLog(`Failed to get CDP endpoint: ${error}`, 'ERROR')
+      addSystemMessage(`Failed to get CDP endpoint: ${error}`, 'ERROR')
       return null
     }
   }
@@ -358,25 +404,27 @@ export const SidePanel = () => {
 
   const handleStartTask = async (task: string) => {
     if (!task.trim()) {
-      addSystemLog('Please enter a task description', 'WARNING')
+      addSystemMessage('Please enter a task description', 'WARNING')
       return
     }
 
     if (!connected || !socket) {
-      addSystemLog('Not connected to server', 'ERROR')
+      addSystemMessage('Not connected to server', 'ERROR')
       return
     }
 
     let endpoint = cdpEndpoint
     if (!endpoint) {
-      addSystemLog('Getting CDP endpoint from current tab...', 'INFO')
+      addSystemMessage('Getting CDP endpoint from current tab...', 'INFO')
       endpoint = (await getCdpEndpoint()) || ''
       if (!endpoint) {
         return
       }
     }
 
-    setTaskResult(null) // Clear previous result
+    // Add user message and loading state
+    addMessage(task, 'user')
+    addLoadingMessage()
 
     const payload: StartTaskPayload = {
       task: task,
@@ -387,54 +435,41 @@ export const SidePanel = () => {
     socket.emit('start_task', payload)
 
     // Don't update state optimistically - wait for server status update via 'status' event
-    addSystemLog(`Starting task: ${task}`, 'INFO')
+    addSystemMessage(`Starting task: ${task}`, 'INFO')
   }
 
   const handleStopTask = () => {
     if (!connected || !socket) return
     socket.emit('stop_task')
+    setIsTyping(false)
     // Don't update state optimistically - wait for server status update
-    addSystemLog('Stopping task...', 'INFO')
+    addSystemMessage('Stopping task...', 'INFO')
   }
 
   const handlePauseTask = () => {
     if (!connected || !socket) return
     socket.emit('pause_task')
+    setIsTyping(false)
     // Don't update state optimistically - wait for server status update
-    addSystemLog('Pausing task...', 'INFO')
+    addSystemMessage('Pausing task...', 'INFO')
   }
 
   const handleResumeTask = () => {
     if (!connected || !socket) return
     socket.emit('resume_task')
+    addLoadingMessage()
     // Don't update state optimistically - wait for server status update
-    addSystemLog('Resuming task...', 'INFO')
+    addSystemMessage('Resuming task...', 'INFO')
   }
 
-  const clearLogs = () => {
-    setLogs([])
+  const clearMessages = () => {
+    setMessages([])
+    setIsTyping(false)
   }
 
-  const controlButtonsProps: ControlButtonsProps = useMemo(
-    () => ({
-      isRunning: taskStatus.is_running,
-      isPaused: taskStatus.is_paused || false,
-      connected,
-      onPause: handlePauseTask,
-      onResume: handleResumeTask,
-      onStop: handleStopTask,
-    }),
-    [taskStatus.is_running, taskStatus.is_paused, connected],
-  )
 
-  const taskStatusProps: TaskStatusProps = useMemo(
-    () => ({
-      isRunning: taskStatus.is_running,
-      currentTask: taskStatus.current_task,
-      isPaused: taskStatus.is_paused || false,
-    }),
-    [taskStatus.is_running, taskStatus.current_task, taskStatus.is_paused],
-  )
+
+
 
   /**
  * Extracts the 'done' text from the last entry in the all_model_outputs list.
@@ -504,6 +539,11 @@ function getLastDoneText(agentHistoryString: string): string | null {
         console.error('Failed to parse AgentHistoryList:', error)
         addSystemLog('Error parsing task result metadata', 'ERROR')
       }
+      if (result.task === null) return
+      console.log('Task result received:', result)
+      const resultMessage = `✅ Task "${result.task}" ${result.success ? 'completed successfully' : 'failed'}`
+      replaceLoadingMessage(resultMessage)
+      // Remove task history from chat - keeping only the completion message
     }
 
     socket.on('task_result', handleTaskResult)
@@ -514,22 +554,25 @@ function getLastDoneText(agentHistoryString: string): string | null {
   }, [socket])
 
   return (
-    <div className="sidepanel-container">
-      {/* Header */}
-      <header className="sidepanel-header">
-        <div className="header-content">
-          <div className="header-logo">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="#667eea" />
-              <path
-                d="M2 17L12 22L22 17M2 12L12 17L22 12"
-                stroke="#667eea"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
+    <div className="flex flex-col h-screen bg-gradient-to-b from-[#020617] to-[#0a0f2c] text-white relative overflow-hidden before:absolute before:inset-0 before:bg-[radial-gradient(ellipse_at_center,_rgba(33,150,243,0.15)_0%,_rgba(33,150,243,0.05)_40%,_transparent_70%)] before:pointer-events-none before:-z-10">
+      {/* Curved neon top highlight line */}
+      <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#2196f3] to-transparent shadow-[0_0_10px_#2196f3] -z-10" />
+      <div className="absolute top-[2px] left-[10%] right-[10%] h-[1px] bg-gradient-to-r from-transparent via-[#2196f3]/60 to-transparent blur-sm -z-10" />
+      
+      {/* Soft radial blue glow in center */}
+      <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-[radial-gradient(ellipse,_rgba(33,150,243,0.1)_0%,_rgba(33,150,243,0.03)_50%,_transparent_100%)] blur-2xl opacity-80 pointer-events-none -z-10" />
+      
+      {/* Header - Minimized */}
+      <header className="relative z-10 px-3 py-2 border-b border-white/10 bg-white/5 backdrop-blur-sm">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="drop-shadow-lg">
+              <circle cx="12" cy="12" r="3" fill="#667eea" />
+              <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1" stroke="#667eea" strokeWidth="2" strokeLinecap="round" />
             </svg>
-            <h1>Browser.AI</h1>
+            <div>
+              <h1 className="text-sm font-semibold text-white">Browser.AI</h1>
+            </div>
           </div>
           <div className="header-actions">
             <button 
@@ -552,12 +595,33 @@ function getLastDoneText(agentHistoryString: string): string | null {
                   stroke="currentColor"
                   strokeWidth="1.5"
                 />
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-white/5 border border-white/10 rounded-full">
+              <span className={`w-1.5 h-1.5 rounded-full transition-all ${connected 
+                ? 'bg-green-400 shadow-lg shadow-green-400/30 animate-pulse' 
+                : 'bg-red-400'
+              }`}></span>
+              <span className="text-xs text-white">{connected ? 'Online' : 'Offline'}</span>
+            </div>
+            <button 
+              className="flex items-center justify-center w-7 h-7 bg-white/5 border border-white/10 rounded-md text-white hover:bg-white/10 transition-colors" 
+              onClick={clearMessages} 
+              title="Clear Chat"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
               </svg>
             </button>
-            <div className="connection-status">
-              <span className={`status-dot ${connected ? 'connected' : 'disconnected'}`}></span>
-              <span className="status-text">{connected ? 'Connected' : 'Disconnected'}</span>
-            </div>
+            <button 
+              className="flex items-center justify-center w-7 h-7 bg-white/5 border border-white/10 rounded-md text-white hover:bg-white/10 transition-colors" 
+              onClick={openOptionsPage} 
+              title="Settings"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="m12 1 2.09 3.26L18 4l-2.35 2.56L15 11l-2.88-.76L9 12l.28-3.4L5.66 7 8 4l-0.09-3z"/>
+              </svg>
+            </button>
           </div>
         </div>
       </header>
@@ -606,6 +670,26 @@ function getLastDoneText(agentHistoryString: string): string | null {
             </div>
           </>
         )}
+      </div>
+      {/* Chat Messages Area */}
+      <div className="flex-1 flex flex-col relative z-10 min-h-0">
+        <div className="flex-1 min-h-0">
+          <ChatMessages messages={messages} isTyping={isTyping} />
+        </div>
+      </div>
+
+      {/* Chat Input at Bottom */}
+      <div className="relative z-10 p-3">
+        <ChatInput
+          onSendMessage={handleStartTask}
+          onStopTask={handleStopTask}
+          onPauseTask={handlePauseTask}
+          onResumeTask={handleResumeTask}
+          isRunning={taskStatus.is_running}
+          isPaused={taskStatus.is_paused}
+          disabled={false}
+          placeholder="What would you like me to automate? (e.g., 'Search for Python tutorials')"
+        />
       </div>
     </div>
   )
