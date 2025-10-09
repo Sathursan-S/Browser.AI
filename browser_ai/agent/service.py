@@ -189,11 +189,11 @@ class Agent:
         self.max_failures = max_failures
         self.retry_delay = retry_delay
         self.validate_output = validate_output
-        
+
         # Auto-inject location detection for shopping tasks
         if initial_actions is None:
             initial_actions = self._auto_detect_shopping_actions()
-        
+
         self.initial_actions = (
             self._convert_initial_actions(initial_actions) if initial_actions else None
         )
@@ -515,8 +515,10 @@ class Agent:
             input_messages, self.model_name
         )
 
-        if self.model_name == "deepseek-reasoner" or self.model_name.startswith(
-            "deepseek-r1"
+        if (
+            self.model_name == "deepseek-reasoner"
+            or self.model_name.startswith("deepseek-r1")
+            or self.model_name.startswith("gemini")
         ):
             output = self.llm.invoke(converted_input_messages)
             output.content = self._remove_think_tags(output.content)
@@ -675,19 +677,11 @@ class Agent:
                 # 2. Create the directory if it doesn't already exist
                 os.makedirs(output_dir, exist_ok=True)
 
-                # 3. Sanitize the task name to remove invalid filename characters
-                # Windows doesn't allow: < > : " / \ | ? *
-                # Also limit length to avoid path too long errors
-                safe_task = re.sub(r'[<>:"/\\|?*]', '', self.task)
-                safe_task = safe_task.replace('\n', ' ').replace('\r', ' ')
-                safe_task = ' '.join(safe_task.split())  # Remove extra whitespace
-                # Limit to 100 characters to avoid path too long errors
-                safe_task = safe_task[:100]
+                # 3. Generate a unique filename
+                # Note: I'm replacing "uuid" with a call to the uuid module for a real example
+                filename = f"agent_history-{self.task}-{uuid.uuid4()}.gif"
                 
-                # 4. Generate a unique filename with sanitized task name
-                filename = f"agent_history-{safe_task}-{uuid.uuid4()}.gif"
-                
-                # 5. Combine the directory and filename to create the full path
+                # 4. Combine the directory and filename to create the full path
                 output_path = os.path.join(output_dir, filename)
 
                 # This logic still allows you to override the path if self.generate_gif is a string
@@ -1371,38 +1365,63 @@ class Agent:
     # endregion
 
     # region Utility Methods
-    def _auto_detect_shopping_actions(self) -> Optional[List[Dict[str, Dict[str, Any]]]]:
+    def _auto_detect_shopping_actions(
+        self,
+    ) -> Optional[List[Dict[str, Dict[str, Any]]]]:
         """
         Auto-detect if task is shopping-related and inject location detection actions.
         Returns initial actions if shopping keywords detected, None otherwise.
         """
         shopping_keywords = [
-            'buy', 'purchase', 'shop', 'shopping', 'order', 'get me', 'find me',
-            'price', 'cost', 'product', 'item', 'best deal', 'cheapest',
-            'laptop', 'phone', 'headphones', 'camera', 'watch', 'shoes',
-            'clothes', 'book', 'tablet', 'monitor', 'keyboard', 'mouse',
-            'ecommerce', 'e-commerce', 'online store', 'marketplace'
+            "buy",
+            "purchase",
+            "shop",
+            "shopping",
+            "order",
+            "get me",
+            "find me",
+            "price",
+            "cost",
+            "product",
+            "item",
+            "best deal",
+            "cheapest",
+            "laptop",
+            "phone",
+            "headphones",
+            "camera",
+            "watch",
+            "shoes",
+            "clothes",
+            "book",
+            "tablet",
+            "monitor",
+            "keyboard",
+            "mouse",
+            "ecommerce",
+            "e-commerce",
+            "online store",
+            "marketplace",
         ]
-        
+
         task_lower = self.task.lower()
-        
+
         # Check if any shopping keyword is in the task
         is_shopping_task = any(keyword in task_lower for keyword in shopping_keywords)
-        
+
         if is_shopping_task:
-            logger.info("🛍️ Shopping task detected - injecting location detection and website research")
+            logger.info(
+                "🛍️ Shopping task detected - injecting location detection and website research"
+            )
             # Return initial actions: detect_location first, then find_best_website
             # The agent will automatically execute these before asking the LLM
             return [
                 {"detect_location": {}},
-                {"find_best_website": {
-                    "purpose": self.task,
-                    "category": "shopping"
-                }}
+                {"find_best_website": {"purpose": self.task, "category": "shopping"}},
             ]
-        
+
         return None
-    
+
     def _convert_initial_actions(
         self, actions: List[Dict[str, Dict[str, Any]]]
     ) -> List[ActionModel]:
