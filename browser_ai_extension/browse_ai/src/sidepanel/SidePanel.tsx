@@ -316,7 +316,10 @@ export const SidePanel = () => {
     }
   }, [settings.serverUrl, settings.autoReconnect, addLog, showNotificationPopup, addSystemLog])
 
-  // Get CDP endpoint from background script
+  // ❌ NOT NEEDED FOR LOCAL PLAYWRIGHT SETUP
+  // This function was for extension-proxy mode where CDP endpoint is fetched dynamically
+  // For local setup, we use direct CDP at http://localhost:9222
+  /*
   const getCdpEndpoint = async () => {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
@@ -341,6 +344,16 @@ export const SidePanel = () => {
       addSystemLog(`Failed to get CDP endpoint: ${error}`, 'ERROR')
       return null
     }
+  }
+  */
+
+  // ✅ SIMPLIFIED FOR LOCAL PLAYWRIGHT SETUP
+  // Just use the known CDP endpoint for local development
+  const getCdpEndpoint = async () => {
+    const endpoint = 'http://localhost:9222'
+    setCdpEndpoint(endpoint)
+    addSystemLog('Using local CDP endpoint: http://localhost:9222', 'INFO')
+    return endpoint
   }
 
   const handleStartTask = async (task: string) => {
