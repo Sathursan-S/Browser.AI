@@ -675,11 +675,19 @@ class Agent:
                 # 2. Create the directory if it doesn't already exist
                 os.makedirs(output_dir, exist_ok=True)
 
-                # 3. Generate a unique filename
-                # Note: I'm replacing "uuid" with a call to the uuid module for a real example
-                filename = f"agent_history-{self.task}-{uuid.uuid4()}.gif"
+                # 3. Sanitize the task name to remove invalid filename characters
+                # Windows doesn't allow: < > : " / \ | ? *
+                # Also limit length to avoid path too long errors
+                safe_task = re.sub(r'[<>:"/\\|?*]', '', self.task)
+                safe_task = safe_task.replace('\n', ' ').replace('\r', ' ')
+                safe_task = ' '.join(safe_task.split())  # Remove extra whitespace
+                # Limit to 100 characters to avoid path too long errors
+                safe_task = safe_task[:100]
                 
-                # 4. Combine the directory and filename to create the full path
+                # 4. Generate a unique filename with sanitized task name
+                filename = f"agent_history-{safe_task}-{uuid.uuid4()}.gif"
+                
+                # 5. Combine the directory and filename to create the full path
                 output_path = os.path.join(output_dir, filename)
 
                 # This logic still allows you to override the path if self.generate_gif is a string

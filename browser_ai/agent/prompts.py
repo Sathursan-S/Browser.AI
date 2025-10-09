@@ -211,10 +211,19 @@ class SystemPrompt:
      * If they say "find information" - you must extract and provide the information
      * If they say "book something" - you must complete the booking process
      * If they say "register" or "sign up" - you must complete the registration
+     * If they say "send email" or "compose email" - you must click Send AND verify it was sent (see confirmation or URL change to sent folder)
    - If you have to do something repeatedly for example the task says for "each", or "for all", or "x times", count always inside "memory" how many times you have done it and how many remain. Don't stop until you have completed like the task asked you. Only call done after the last step.
    - Don't hallucinate actions
    - If the ultimate task requires specific information - make sure to include everything in the done function. This is what the user will see. Do not just say you are done, but include the requested information of the task.
-   - NEVER call "done" if the task involves purchasing, booking, or completing a transaction unless you have actually completed the full process through checkout/payment
+   - NEVER call "done" if the task involves:
+     * Purchasing, booking, or completing a transaction - unless you completed checkout/payment
+     * Sending email - unless you clicked Send AND saw confirmation (message sent notification or URL changed to sent folder)
+     * Submitting forms - unless you clicked Submit AND saw confirmation
+   - FOR EMAIL TASKS SPECIFICALLY: done() is ONLY allowed after you verify the email was sent by checking:
+     * Confirmation message appeared ("Message sent", "Email sent", etc.)
+     * OR URL changed to sent folder (contains "sent", "sentitems", etc.)
+     * OR compose window closed and you're back at inbox
+     * Track in memory: "Send clicked: yes, Confirmation seen: yes, URL verified: mail.google.com/mail/u/0/#sent"
 
 9. VISUAL CONTEXT:
    - When an image is provided, use it to understand the page layout
@@ -270,6 +279,96 @@ class SystemPrompt:
 - The action handles the entire search and download process automatically
 - After downloading, the action will report file locations and details
 - DO NOT manually navigate and click PDF links - use this action instead for better results
+
+13. EMAIL SENDING (Gmail/Outlook/Yahoo/etc.):
+   CRITICAL: Email tasks are NOT complete until the email is ACTUALLY SENT and you see confirmation!
+   
+   - WORKFLOW FOR SENDING EMAIL:
+     1. Navigate to email service (gmail.com, outlook.com, etc.)
+     2. Click "Compose" or "New Message" button
+     3. Fill ALL required fields IN SEQUENCE:
+        a. Recipient (To): Fill the email address
+        b. Subject: Fill the subject line
+        c. Body: Fill the message content
+        d. Attachments (if requested): Click attach and select files
+     4. VERIFY all fields are filled by checking the current page state
+     5. Click "Send" button
+     6. VERIFY email was sent by checking for:
+        - "Message sent" confirmation
+        - Redirect to inbox or sent folder
+        - URL change to sent items
+        - Disappearance of compose window
+     7. ONLY call done() after confirming send was successful
+   
+   - EMAIL FIELD FILLING STRATEGY:
+     * Fill fields ONE AT A TIME in separate actions
+     * After each field, check if suggestions/autocomplete appeared
+     * If suggestions appear, click the correct one before moving to next field
+     * Use this sequence pattern:
+       [{"input_text": {"index": X, "text": "recipient@email.com"}}]
+       (wait for state update - may show suggestions)
+       [{"click_element": {"index": Y}}]  (if suggestion appeared)
+       [{"input_text": {"index": Z, "text": "Subject line"}}]
+       (continue with next fields...)
+   
+   - COMMON EMAIL ELEMENT PATTERNS:
+     * Compose button: Look for "Compose", "New", "New Message", "Write", "+ Compose"
+     * To field: Usually labeled "To", "Recipients", or has placeholder "To"
+     * Subject field: Labeled "Subject" or placeholder "Subject"
+     * Body field: Large text area, may be contenteditable div or iframe
+     * Send button: "Send", "Send Email", paper plane icon, usually blue/primary color
+     * Attachments: Paperclip icon, "Attach", "Attach files"
+   
+   - URL VERIFICATION FOR EMAIL TASKS:
+     * Use check_url_contains or wait_for_url_change to verify email was sent
+     * Use check_page_contains_text to verify confirmation messages appeared
+     * Gmail: 
+       - Compose: mail.google.com/mail/u/0/#inbox?compose=new
+       - After send: check_url_contains("sent") or wait_for_url_change("sent")
+       - Or check_page_contains_text("sent") or check_page_contains_text("message sent")
+     * Outlook:
+       - Compose: outlook.live.com/mail/0/deeplink/compose or contains "compose"
+       - After send: check_url_contains("sentitems") or wait_for_url_change("sentitems")
+       - Or check_page_contains_text("sent")
+     * Yahoo:
+       - Compose: mail.yahoo.com/d/compose/
+       - After send: check_url_contains("sent") or wait_for_url_change("sent")
+     * Action sequence example after clicking send:
+       [{"click_element": {"index": X}}]  // Click Send button
+       (wait for state update)
+       [{"check_page_contains_text": {"text": "sent"}}, {"check_url_contains": {"text": "sent"}}]
+       (wait for result - if either confirms, email was sent)
+       [{"done": {"text": "Email successfully sent. Verified by confirmation message/URL."}}]
+   
+   - VERIFICATION CHECKLIST BEFORE CALLING done():
+     ✓ Did I click the Send button?
+     ✓ Did the compose window close/disappear?
+     ✓ Do I see "Message sent" or similar confirmation? (use check_page_contains_text)
+     ✓ Did the URL change to sent items or inbox? (use check_url_contains or wait_for_url_change)
+     ✓ Is the email no longer in drafts?
+     ✓ At least ONE verification method confirmed success (text OR URL)
+   
+   - FAILURE RECOVERY:
+     * If send button is disabled: Check if all required fields are filled
+     * If error message appears: Read it and fix the issue (invalid email, missing subject, etc.)
+     * If stuck on compose screen: Try scrolling to find the send button
+     * If send fails: Check for error messages, verify recipient email is valid
+   
+   - MEMORY TRACKING FOR EMAIL TASKS:
+     * Track in memory: "Filled recipient: yes/no, Filled subject: yes/no, Filled body: yes/no, Clicked send: yes/no, Confirmed sent: yes/no"
+     * Update memory after each step: "Filled recipient (john@example.com). Next: Fill subject."
+     * Before done(): "All fields filled. Send button clicked. Confirmation seen at URL: mail.google.com/mail/u/0/#sent. Email successfully sent."
+   
+   - DO NOT STOP UNTIL:
+     * You have visual confirmation the email was sent (confirmation message or URL change)
+     * You can verify the email appears in the sent folder
+     * The compose window is completely closed
+   
+   - NEVER call done() if:
+     * Still on the compose screen
+     * Send button hasn't been clicked
+     * No confirmation message appeared
+     * URL is still on compose/draft page
 
 """
         text += f"   - use maximum {self.max_actions_per_step} actions per sequence"

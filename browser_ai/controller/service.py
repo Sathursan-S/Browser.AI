@@ -557,6 +557,97 @@ class Controller:
             return ActionResult(extracted_content=msg, include_in_memory=True)
 
         @self.registry.action(
+            description="Check if the current URL contains specific text (case-insensitive). Returns true/false. Useful for verifying navigation, email sent (check for 'sent' or 'sentitems'), form submission, etc.",
+        )
+        async def check_url_contains(text: str, browser: BrowserContext) -> ActionResult:
+            """Check if current URL contains specific text"""
+            page = await browser.get_current_page()
+            current_url = page.url
+            contains = text.lower() in current_url.lower()
+            
+            if contains:
+                msg = f"✓ URL contains '{text}': {current_url}"
+            else:
+                msg = f"✗ URL does NOT contain '{text}': {current_url}"
+            
+            logger.info(msg)
+            return ActionResult(extracted_content=msg, include_in_memory=True)
+
+        @self.registry.action(
+            description="Wait for the URL to change or contain specific text. Useful for waiting for redirects after form submission, email sending, etc. Waits up to 10 seconds.",
+        )
+        async def wait_for_url_change(
+            contains_text: str = "",
+            timeout_seconds: int = 10,
+            browser: BrowserContext = None
+        ) -> ActionResult:
+            """Wait for URL to change or contain specific text"""
+            page = await browser.get_current_page()
+            initial_url = page.url
+            
+            try:
+                if contains_text:
+                    # Wait for URL to contain specific text
+                    await page.wait_for_url(
+                        lambda url: contains_text.lower() in url.lower(),
+                        timeout=timeout_seconds * 1000
+                    )
+                    msg = f"✓ URL now contains '{contains_text}': {page.url}"
+                else:
+                    # Wait for any URL change
+                    await page.wait_for_url(
+                        lambda url: url != initial_url,
+                        timeout=timeout_seconds * 1000
+                    )
+                    msg = f"✓ URL changed from {initial_url} to {page.url}"
+                
+                logger.info(msg)
+                return ActionResult(extracted_content=msg, include_in_memory=True)
+                
+            except Exception as e:
+                msg = f"Timeout: URL did not change as expected. Current URL: {page.url}"
+                logger.warning(msg)
+                return ActionResult(extracted_content=msg, include_in_memory=True)
+
+        @self.registry.action(
+            description="Check if specific text exists on the current page. Returns true/false. Useful for verifying confirmation messages like 'Email sent', 'Message sent', 'Success', etc.",
+        )
+        async def check_page_contains_text(text: str, browser: BrowserContext) -> ActionResult:
+            """Check if page contains specific text (case-insensitive)"""
+            page = await browser.get_current_page()
+            
+            try:
+                # Try to find the text using different methods
+                text_found = False
+                
+                # Method 1: Check with Playwright's get_by_text
+                try:
+                    locator = page.get_by_text(text, exact=False)
+                    if await locator.count() > 0:
+                        text_found = True
+                except:
+                    pass
+                
+                # Method 2: Check page content if not found
+                if not text_found:
+                    page_content = await page.content()
+                    if text.lower() in page_content.lower():
+                        text_found = True
+                
+                if text_found:
+                    msg = f"✓ Page contains text: '{text}'"
+                else:
+                    msg = f"✗ Page does NOT contain text: '{text}'"
+                
+                logger.info(msg)
+                return ActionResult(extracted_content=msg, include_in_memory=True)
+                
+            except Exception as e:
+                msg = f"Error checking for text '{text}': {str(e)}"
+                logger.error(msg)
+                return ActionResult(error=msg, include_in_memory=True)
+
+        @self.registry.action(
             description="If you dont find something which you want to interact with, scroll to it",
         )
         async def scroll_to_text(text: str, browser: BrowserContext):  # type: ignore
