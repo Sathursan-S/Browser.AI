@@ -65,7 +65,7 @@ class Controller:
 
 		# Basic Navigation Actions
 		@self.registry.action(
-			'Search the query in Google in the current tab. The query should be a search query like humans search in Google, concrete and not vague or super long. For shopping/buying tasks, consider using search_ecommerce instead to avoid CAPTCHAs.',
+			'Search the query in Google in the current tab. The query should be a search query like humans search in Google, concrete and not vague or super long. For shopping/buying tasks, consider using search_ecommerce instead to avoid CAPTCHAs. For research-oriented tasks, consider using search_google_with_ai for better results.',
 			param_model=SearchGoogleAction,
 		)
 		async def search_google(params: SearchGoogleAction, browser: BrowserContext):
@@ -92,8 +92,7 @@ class Controller:
 
 		@self.registry.action(
 			(
-				'Search Google using AI to generate a more effective search query based on your input. '
-				'This helps in refining vague or complex queries to get better search results.'
+				'Search Google using AI to generate a more effective search query based on your input, This helps in refining vague or complex queries to get better search results.'
 			),
 			param_model=SearchGoogleWithAiAction,
 		)
@@ -103,8 +102,20 @@ class Controller:
 			# 1. Construct URL for Google's AI search mode
 			url = f"https://www.google.com/search?q={urllib.parse.quote_plus(params.query)}&udm=50"
 
-			# 2. Open the URL in a new tab
-			original_page_id = (await browser.get_current_page()).page_id
+			# 2. Get current page index before opening new tab
+			session = await browser.get_session()
+			current_page = await browser.get_current_page()
+			# Find the index of current page in the pages list
+			original_page_id = None
+			for i, page in enumerate(session.context.pages):
+				if page == current_page:
+					original_page_id = i
+					break
+			
+			if original_page_id is None:
+				original_page_id = 0  # Fallback to first tab
+			
+			# 3. Open the URL in a new tab
 			await browser.create_new_tab(url)
 			page = await browser.get_current_page()
 

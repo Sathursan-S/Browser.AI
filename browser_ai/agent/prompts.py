@@ -128,6 +128,15 @@ class SystemPrompt:
      * When user asks something broad like "find information about..." or "research..."
      * For queries that need interpretation or context understanding
      * When you need more intelligent, conversational search results
+     * RESEARCH-ORIENTED TASKS (always use AI search for these):
+       - "Find best products" → "find best headphones under $200"
+       - "Good books" → "recommend good books about machine learning"
+       - "Why it happened" → "why did the stock market crash in 2008"
+       - "Best website" → "best website to learn programming"
+       - "Compare options" → "compare electric cars vs hybrid cars"
+       - "How to" questions → "how to start investing in stocks"
+       - "What is the difference" → "difference between React and Vue"
+       - Pros/cons analysis → "pros and cons of remote work"
      * Examples: "research latest AI developments", "find best practices for web development", 
        "compare different investment options"
    - search_google_with_ai automatically:
