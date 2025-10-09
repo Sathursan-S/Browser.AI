@@ -680,7 +680,7 @@ class Agent:
                 # 3. Generate a unique filename
                 # Note: I'm replacing "uuid" with a call to the uuid module for a real example
                 filename = f"agent_history-{self.task}-{uuid.uuid4()}.gif"
-
+                
                 # 4. Combine the directory and filename to create the full path
                 output_path = os.path.join(output_dir, filename)
 
