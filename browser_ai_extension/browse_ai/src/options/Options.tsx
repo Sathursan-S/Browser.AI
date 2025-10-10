@@ -35,13 +35,13 @@ export const Options = () => {
     try {
       await chrome.storage.sync.set({ settings })
       setSaveStatus('saved')
-      
+
       // Notify all tabs about settings update
       chrome.runtime.sendMessage({
         type: 'SETTINGS_UPDATED',
         settings,
       })
-      
+
       setTimeout(() => setSaveStatus('idle'), 2000)
     } catch (error) {
       console.error('Failed to save settings:', error)
@@ -61,14 +61,14 @@ export const Options = () => {
   return (
     <div className="options-container">
       <header className="options-header">
-        <h1>🤖 Browser.AI Settings</h1>
+        <h1>Browze.AI Settings</h1>
         <p className="subtitle">Configure your browser automation extension</p>
       </header>
 
       <div className="options-content">
         <section className="settings-section">
           <h2>🔌 Connection Settings</h2>
-          
+
           <div className="setting-group">
             <label htmlFor="serverUrl">
               <span className="label-text">Server URL</span>
@@ -105,7 +105,7 @@ export const Options = () => {
 
         <section className="settings-section">
           <h2>🎨 Display Settings</h2>
-          
+
           <div className="setting-group">
             <label className="checkbox-label">
               <input
@@ -144,7 +144,7 @@ export const Options = () => {
 
         <section className="settings-section">
           <h2>🔔 Notifications</h2>
-          
+
           <div className="setting-group">
             <label className="checkbox-label">
               <input

@@ -11,19 +11,19 @@ export default defineManifest({
   manifest_version: 3,
   icons: {
     // @ts-ignore
-    16: 'img/logo-16.png',
+    16: 'img/icon16.png',
     // @ts-ignore
-    32: 'img/logo-32.png',
+    32: 'img/icon32.png',
     // @ts-ignore
-    48: 'img/logo-48.png',
+    48: 'img/icon48.png',
     // @ts-ignore
-    128: 'img/logo-128.png',
+    128: 'img/icon128.png',
   },
   action: {
     // @ts-ignore
     default_title: 'Click to open Browser.AI Side Panel',
     // @ts-ignore
-    default_icon: 'img/logo-48.png',
+    default_icon: 'img/icon48.png',
   },
   // @ts-ignore
   options_page: 'options.html',
@@ -46,7 +46,12 @@ export default defineManifest({
   },
   web_accessible_resources: [
     {
-      resources: ['img/logo-16.png', 'img/logo-32.png', 'img/logo-48.png', 'img/logo-128.png'],
+      resources: [
+        'img/icon16.png',
+        'img/icon32.png',
+        'img/icon48.png',
+        'img/icon128.png',
+      ],
       matches: [],
     },
   ],
@@ -54,4 +59,3 @@ export default defineManifest({
   // @ts-ignore
   host_permissions: ['<all_urls>'],
 })
-
