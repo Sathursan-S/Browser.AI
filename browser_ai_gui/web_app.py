@@ -81,12 +81,12 @@ class TaskManager:
                         )
                     )
 
-                    self.event_adapter.emit_custom_event(
-                        EventType.AGENT_COMPLETE,
-                        f"Task completed successfully",
-                        LogLevel.INFO,
-                        {"result": str(result)},
-                    )
+                    # self.event_adapter.emit_custom_event(
+                    #     EventType.AGENT_COMPLETE,
+                    #     f"Task completed successfully",
+                    #     LogLevel.INFO,
+                    #     {"result": str(result)},
+                    # )
 
                 except Exception as e:
                     self.event_adapter.emit_custom_event(
@@ -233,17 +233,56 @@ class WebApp:
                     "llm": {
                         "provider": self.config_manager.llm_config.provider,
                         "model": self.config_manager.llm_config.model,
-                        "temperature": self.config_manager.llm_config.temperature,
+                        "temperature": getattr(
+                            self.config_manager.llm_config, "temperature", 0.1
+                        ),
+                        "max_tokens": getattr(
+                            self.config_manager.llm_config, "max_tokens", None
+                        ),
+                        "timeout": getattr(
+                            self.config_manager.llm_config, "timeout", 30
+                        ),
+                        "base_url": getattr(
+                            self.config_manager.llm_config, "base_url", None
+                        ),
                         "has_api_key": bool(self.config_manager.llm_config.api_key),
                     },
                     "browser": {
                         "headless": self.config_manager.browser_config.headless,
                         "disable_security": self.config_manager.browser_config.disable_security,
+                        "extra_args": getattr(
+                            self.config_manager.browser_config, "extra_args", []
+                        ),
+                        "window_width": getattr(
+                            self.config_manager.browser_config, "window_width", 1280
+                        ),
+                        "window_height": getattr(
+                            self.config_manager.browser_config, "window_height", 720
+                        ),
                     },
                     "agent": {
                         "use_vision": self.config_manager.agent_config.use_vision,
                         "max_failures": self.config_manager.agent_config.max_failures,
                         "max_steps": self.config_manager.agent_config.max_steps,
+                        "retry_delay": getattr(
+                            self.config_manager.agent_config, "retry_delay", 10
+                        ),
+                        "generate_gif": getattr(
+                            self.config_manager.agent_config, "generate_gif", True
+                        ),
+                        "validate_output": getattr(
+                            self.config_manager.agent_config, "validate_output", True
+                        ),
+                        "planner_llm": getattr(
+                            self.config_manager.agent_config,
+                            "planner_llm",
+                            "gemini-2.5-flash-lite",
+                        ),
+                        "page_extraction_llm": getattr(
+                            self.config_manager.agent_config,
+                            "page_extraction_llm",
+                            "gemini-2.5-flash-lite",
+                        ),
                     },
                     "supported_providers": self.config_manager.get_supported_providers(),
                     "default_models": self.config_manager.get_default_models(),

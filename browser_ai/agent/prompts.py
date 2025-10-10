@@ -9,15 +9,15 @@ from browser_ai.browser.views import BrowserState
 
 
 class SystemPrompt:
-	def __init__(self, action_description: str, max_actions_per_step: int = 10):
-		self.default_action_description = action_description
-		self.max_actions_per_step = max_actions_per_step
+    def __init__(self, action_description: str, max_actions_per_step: int = 10):
+        self.default_action_description = action_description
+        self.max_actions_per_step = max_actions_per_step
 
-	def important_rules(self) -> str:
-		"""
-		Returns the important rules for the agent.
-		"""
-		text = """
+    def important_rules(self) -> str:
+        """
+        Returns the important rules for the agent.
+        """
+        text = """
 ⚠️ CRITICAL: SHOPPING TASKS MUST START WITH THESE TWO ACTIONS:
    - For ANY shopping/buying task, your FIRST action MUST be: {"detect_location": {}}
    - Your SECOND action MUST be: {"find_best_website": {"purpose": "what you're shopping for", "category": "shopping"}}
@@ -55,6 +55,10 @@ class SystemPrompt:
        {"open_tab": {}},
        {"go_to_url": {"url": "https://example.com"}},
        {"extract_content": ""}
+     ]
+   - AI-powered research: [
+       {"search_google_with_ai": {"query": "complex or vague search query"}},
+       {"extract_content": "specific information needed"}
      ]
 
 
@@ -118,7 +122,31 @@ class SystemPrompt:
        - Use the answer to continue with appropriate actions
        - Remember the answer for the rest of the task
 
-6. LOCATION-AWARE SHOPPING:
+6. SEARCH STRATEGIES:
+   - Use search_google for straightforward, specific searches where you know exactly what you're looking for
+   - Use search_google_with_ai for complex, vague, or ambiguous queries that could benefit from AI refinement:
+     * When user asks something broad like "find information about..." or "research..."
+     * For queries that need interpretation or context understanding
+     * When you need more intelligent, conversational search results
+     * RESEARCH-ORIENTED TASKS (always use AI search for these):
+       - "Find best products" → "find best headphones under $200"
+       - "Good books" → "recommend good books about machine learning"
+       - "Why it happened" → "why did the stock market crash in 2008"
+       - "Best website" → "best website to learn programming"
+       - "Compare options" → "compare electric cars vs hybrid cars"
+       - "How to" questions → "how to start investing in stocks"
+       - "What is the difference" → "difference between React and Vue"
+       - Pros/cons analysis → "pros and cons of remote work"
+     * Examples: "research latest AI developments", "find best practices for web development", 
+       "compare different investment options"
+   - search_google_with_ai automatically:
+     * Opens Google's AI search mode in a new tab
+     * Extracts AI-generated content from Google's AI results
+     * Processes and summarizes the content using an LLM
+     * Returns to the original tab when complete
+   - For shopping tasks, still use the location-aware workflow: detect_location → find_best_website → search_ecommerce
+
+7. LOCATION-AWARE SHOPPING:
    - ALWAYS use detect_location FIRST when starting any shopping/buying task
    - Location detection provides:
      * User's country and currency (e.g., "Sri Lanka - LKR Rs", "USA - USD $")
@@ -183,10 +211,19 @@ class SystemPrompt:
      * If they say "find information" - you must extract and provide the information
      * If they say "book something" - you must complete the booking process
      * If they say "register" or "sign up" - you must complete the registration
+     * If they say "send email" or "compose email" - you must click Send AND verify it was sent (see confirmation or URL change to sent folder)
    - If you have to do something repeatedly for example the task says for "each", or "for all", or "x times", count always inside "memory" how many times you have done it and how many remain. Don't stop until you have completed like the task asked you. Only call done after the last step.
    - Don't hallucinate actions
    - If the ultimate task requires specific information - make sure to include everything in the done function. This is what the user will see. Do not just say you are done, but include the requested information of the task.
-   - NEVER call "done" if the task involves purchasing, booking, or completing a transaction unless you have actually completed the full process through checkout/payment
+   - NEVER call "done" if the task involves:
+     * Purchasing, booking, or completing a transaction - unless you completed checkout/payment
+     * Sending email - unless you clicked Send AND saw confirmation (message sent notification or URL changed to sent folder)
+     * Submitting forms - unless you clicked Submit AND saw confirmation
+   - FOR EMAIL TASKS SPECIFICALLY: done() is ONLY allowed after you verify the email was sent by checking:
+     * Confirmation message appeared ("Message sent", "Email sent", etc.)
+     * OR URL changed to sent folder (contains "sent", "sentitems", etc.)
+     * OR compose window closed and you're back at inbox
+     * Track in memory: "Send clicked: yes, Confirmation seen: yes, URL verified: mail.google.com/mail/u/0/#sent"
 
 9. VISUAL CONTEXT:
    - When an image is provided, use it to understand the page layout
@@ -243,12 +280,102 @@ class SystemPrompt:
 - After downloading, the action will report file locations and details
 - DO NOT manually navigate and click PDF links - use this action instead for better results
 
-"""
-		text += f'   - use maximum {self.max_actions_per_step} actions per sequence'
-		return text
+13. EMAIL SENDING (Gmail/Outlook/Yahoo/etc.):
+   CRITICAL: Email tasks are NOT complete until the email is ACTUALLY SENT and you see confirmation!
+   
+   - WORKFLOW FOR SENDING EMAIL:
+     1. Navigate to email service (gmail.com, outlook.com, etc.)
+     2. Click "Compose" or "New Message" button
+     3. Fill ALL required fields IN SEQUENCE:
+        a. Recipient (To): Fill the email address
+        b. Subject: Fill the subject line
+        c. Body: Fill the message content
+        d. Attachments (if requested): Click attach and select files
+     4. VERIFY all fields are filled by checking the current page state
+     5. Click "Send" button
+     6. VERIFY email was sent by checking for:
+        - "Message sent" confirmation
+        - Redirect to inbox or sent folder
+        - URL change to sent items
+        - Disappearance of compose window
+     7. ONLY call done() after confirming send was successful
+   
+   - EMAIL FIELD FILLING STRATEGY:
+     * Fill fields ONE AT A TIME in separate actions
+     * After each field, check if suggestions/autocomplete appeared
+     * If suggestions appear, click the correct one before moving to next field
+     * Use this sequence pattern:
+       [{"input_text": {"index": X, "text": "recipient@email.com"}}]
+       (wait for state update - may show suggestions)
+       [{"click_element": {"index": Y}}]  (if suggestion appeared)
+       [{"input_text": {"index": Z, "text": "Subject line"}}]
+       (continue with next fields...)
+   
+   - COMMON EMAIL ELEMENT PATTERNS:
+     * Compose button: Look for "Compose", "New", "New Message", "Write", "+ Compose"
+     * To field: Usually labeled "To", "Recipients", or has placeholder "To"
+     * Subject field: Labeled "Subject" or placeholder "Subject"
+     * Body field: Large text area, may be contenteditable div or iframe
+     * Send button: "Send", "Send Email", paper plane icon, usually blue/primary color
+     * Attachments: Paperclip icon, "Attach", "Attach files"
+   
+   - URL VERIFICATION FOR EMAIL TASKS:
+     * Use check_url_contains or wait_for_url_change to verify email was sent
+     * Use check_page_contains_text to verify confirmation messages appeared
+     * Gmail: 
+       - Compose: mail.google.com/mail/u/0/#inbox?compose=new
+       - After send: check_url_contains("sent") or wait_for_url_change("sent")
+       - Or check_page_contains_text("sent") or check_page_contains_text("message sent")
+     * Outlook:
+       - Compose: outlook.live.com/mail/0/deeplink/compose or contains "compose"
+       - After send: check_url_contains("sentitems") or wait_for_url_change("sentitems")
+       - Or check_page_contains_text("sent")
+     * Yahoo:
+       - Compose: mail.yahoo.com/d/compose/
+       - After send: check_url_contains("sent") or wait_for_url_change("sent")
+     * Action sequence example after clicking send:
+       [{"click_element": {"index": X}}]  // Click Send button
+       (wait for state update)
+       [{"check_page_contains_text": {"text": "sent"}}, {"check_url_contains": {"text": "sent"}}]
+       (wait for result - if either confirms, email was sent)
+       [{"done": {"text": "Email successfully sent. Verified by confirmation message/URL."}}]
+   
+   - VERIFICATION CHECKLIST BEFORE CALLING done():
+     ✓ Did I click the Send button?
+     ✓ Did the compose window close/disappear?
+     ✓ Do I see "Message sent" or similar confirmation? (use check_page_contains_text)
+     ✓ Did the URL change to sent items or inbox? (use check_url_contains or wait_for_url_change)
+     ✓ Is the email no longer in drafts?
+     ✓ At least ONE verification method confirmed success (text OR URL)
+   
+   - FAILURE RECOVERY:
+     * If send button is disabled: Check if all required fields are filled
+     * If error message appears: Read it and fix the issue (invalid email, missing subject, etc.)
+     * If stuck on compose screen: Try scrolling to find the send button
+     * If send fails: Check for error messages, verify recipient email is valid
+   
+   - MEMORY TRACKING FOR EMAIL TASKS:
+     * Track in memory: "Filled recipient: yes/no, Filled subject: yes/no, Filled body: yes/no, Clicked send: yes/no, Confirmed sent: yes/no"
+     * Update memory after each step: "Filled recipient (john@example.com). Next: Fill subject."
+     * Before done(): "All fields filled. Send button clicked. Confirmation seen at URL: mail.google.com/mail/u/0/#sent. Email successfully sent."
+   
+   - DO NOT STOP UNTIL:
+     * You have visual confirmation the email was sent (confirmation message or URL change)
+     * You can verify the email appears in the sent folder
+     * The compose window is completely closed
+   
+   - NEVER call done() if:
+     * Still on the compose screen
+     * Send button hasn't been clicked
+     * No confirmation message appeared
+     * URL is still on compose/draft page
 
-	def input_format(self) -> str:
-		return """
+"""
+        text += f"   - use maximum {self.max_actions_per_step} actions per sequence"
+        return text
+
+    def input_format(self) -> str:
+        return """
 INPUT STRUCTURE:
 1. Current URL: The webpage you're currently on
 2. Available Tabs: List of open browser tabs
@@ -268,15 +395,15 @@ Notes:
 - [] elements provide context but cannot be interacted with
 """
 
-	def get_system_message(self) -> SystemMessage:
-		"""
-		Get the system prompt for the agent.
+    def get_system_message(self) -> SystemMessage:
+        """
+        Get the system prompt for the agent.
 
-		Returns:
-		    str: Formatted system prompt
-		"""
+        Returns:
+            str: Formatted system prompt
+        """
 
-		AGENT_PROMPT = f"""You are a precise browser automation agent that interacts with websites through structured commands. Your role is to:
+        AGENT_PROMPT = f"""You are a precise browser automation agent that interacts with websites through structured commands. Your role is to:
 1. Analyze the provided webpage elements and structure
 2. Use the given information to accomplish the ultimate task
 3. Respond with valid JSON containing your next action sequence and state assessment
@@ -290,7 +417,7 @@ Functions:
 {self.default_action_description}
 
 Remember: Your responses must be valid JSON matching the specified format. Each action in the sequence must be valid."""
-		return SystemMessage(content=AGENT_PROMPT)
+        return SystemMessage(content=AGENT_PROMPT)
 
 
 # Example:
@@ -300,50 +427,48 @@ Remember: Your responses must be valid JSON matching the specified format. Each 
 
 
 class AgentMessagePrompt:
-	def __init__(
-		self,
-		state: BrowserState,
-		result: Optional[List[ActionResult]] = None,
-		include_attributes: list[str] = [],
-		max_error_length: int = 400,
-		step_info: Optional[AgentStepInfo] = None,
-	):
-		self.state = state
-		self.result = result
-		self.max_error_length = max_error_length
-		self.include_attributes = include_attributes
-		self.step_info = step_info
+    def __init__(
+        self,
+        state: BrowserState,
+        result: Optional[List[ActionResult]] = None,
+        include_attributes: list[str] = [],
+        max_error_length: int = 400,
+        step_info: Optional[AgentStepInfo] = None,
+    ):
+        self.state = state
+        self.result = result
+        self.max_error_length = max_error_length
+        self.include_attributes = include_attributes
+        self.step_info = step_info
 
-	def get_user_message(self, use_vision: bool = True) -> HumanMessage:
-		elements_text = self.state.element_tree.clickable_elements_to_string(include_attributes=self.include_attributes)
+    def get_user_message(self, use_vision: bool = True) -> HumanMessage:
+        elements_text = self.state.element_tree.clickable_elements_to_string(
+            include_attributes=self.include_attributes
+        )
 
-		has_content_above = (self.state.pixels_above or 0) > 0
-		has_content_below = (self.state.pixels_below or 0) > 0
+        has_content_above = (self.state.pixels_above or 0) > 0
+        has_content_below = (self.state.pixels_below or 0) > 0
 
-		if elements_text != '':
-			if has_content_above:
-				elements_text = (
-					f'... {self.state.pixels_above} pixels above - scroll or extract content to see more ...\n{elements_text}'
-				)
-			else:
-				elements_text = f'[Start of page]\n{elements_text}'
-			if has_content_below:
-				elements_text = (
-					f'{elements_text}\n... {self.state.pixels_below} pixels below - scroll or extract content to see more ...'
-				)
-			else:
-				elements_text = f'{elements_text}\n[End of page]'
-		else:
-			elements_text = 'empty page'
+        if elements_text != "":
+            if has_content_above:
+                elements_text = f"... {self.state.pixels_above} pixels above - scroll or extract content to see more ...\n{elements_text}"
+            else:
+                elements_text = f"[Start of page]\n{elements_text}"
+            if has_content_below:
+                elements_text = f"{elements_text}\n... {self.state.pixels_below} pixels below - scroll or extract content to see more ..."
+            else:
+                elements_text = f"{elements_text}\n[End of page]"
+        else:
+            elements_text = "empty page"
 
-		if self.step_info:
-			step_info_description = f'Current step: {self.step_info.step_number + 1}/{self.step_info.max_steps}'
-		else:
-			step_info_description = ''
-		time_str = datetime.now().strftime('%Y-%m-%d %H:%M')
-		step_info_description += f'Current date and time: {time_str}'
+        if self.step_info:
+            step_info_description = f"Current step: {self.step_info.step_number + 1}/{self.step_info.max_steps}"
+        else:
+            step_info_description = ""
+        time_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+        step_info_description += f"Current date and time: {time_str}"
 
-		state_description = f"""
+        state_description = f"""
 [Task history memory ends here]
 [Current state starts here]
 You will see the following only once - if you need to remember it and you dont know it yet, write it down in the memory:
@@ -355,34 +480,38 @@ Interactive elements from current page:
 {step_info_description}
 """
 
-		if self.result:
-			for i, result in enumerate(self.result):
-				if result.extracted_content:
-					state_description += f'\nAction result {i + 1}/{len(self.result)}: {result.extracted_content}'
-				if result.error:
-					# only use last 300 characters of error
-					error = result.error[-self.max_error_length :]
-					state_description += f'\nAction error {i + 1}/{len(self.result)}: ...{error}'
+        if self.result:
+            for i, result in enumerate(self.result):
+                if result.extracted_content:
+                    state_description += f"\nAction result {i + 1}/{len(self.result)}: {result.extracted_content}"
+                if result.error:
+                    # only use last 300 characters of error
+                    error = result.error[-self.max_error_length :]
+                    state_description += (
+                        f"\nAction error {i + 1}/{len(self.result)}: ...{error}"
+                    )
 
-		if self.state.screenshot and use_vision == True:
-			# Format message for vision model
-			return HumanMessage(
-				content=[
-					{'type': 'text', 'text': state_description},
-					{
-						'type': 'image_url',
-						'image_url': {'url': f'data:image/png;base64,{self.state.screenshot}'},
-					},
-				]
-			)
+        if self.state.screenshot and use_vision == True:
+            # Format message for vision model
+            return HumanMessage(
+                content=[
+                    {"type": "text", "text": state_description},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/png;base64,{self.state.screenshot}"
+                        },
+                    },
+                ]
+            )
 
-		return HumanMessage(content=state_description)
+        return HumanMessage(content=state_description)
 
 
 class PlannerPrompt(SystemPrompt):
-	def get_system_message(self) -> SystemMessage:
-		return SystemMessage(
-			content="""You are a planning agent that helps break down tasks into smaller steps and reason about the current state.
+    def get_system_message(self) -> SystemMessage:
+        return SystemMessage(
+            content="""You are a planning agent that helps break down tasks into smaller steps and reason about the current state.
 Your role is to:
 1. Analyze the current state and history
 2. Evaluate progress towards the ultimate goal
@@ -403,4 +532,4 @@ Your output format should be always a JSON object with the following fields:
 Ignore the other AI messages output structures.
 
 Keep your responses concise and focused on actionable insights."""
-		)
+        )

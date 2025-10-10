@@ -1,31 +1,39 @@
 console.log('Browser.AI background service worker is running')
 
+// ============================================================================
+// NOT NEEDED FOR LOCAL PLAYWRIGHT SETUP WITH CDP DEBUG MODE
+// The following CDP proxy code is commented out because:
+// 1. Playwright already manages CDP connections via --remote-debugging-port=9222
+// 2. Direct CDP access is available at http://localhost:9222
+// 3. No need for chrome.debugger API proxy when using local setup
+// ============================================================================
+
 // Track debugger attachments
-const debuggerAttachments = new Map<number, boolean>()
+// const debuggerAttachments = new Map<number, boolean>()
 
 // Define message types
-interface GetCdpEndpointMessage {
-  type: 'GET_CDP_ENDPOINT'
-  tabId: number
-}
+// interface GetCdpEndpointMessage {
+//   type: 'GET_CDP_ENDPOINT'
+//   tabId: number
+// }
 
-interface AttachDebuggerMessage {
-  type: 'ATTACH_DEBUGGER'
-  tabId: number
-}
+// interface AttachDebuggerMessage {
+//   type: 'ATTACH_DEBUGGER'
+//   tabId: number
+// }
 
-interface DetachDebuggerMessage {
-  type: 'DETACH_DEBUGGER'
-  tabId: number
-}
+// interface DetachDebuggerMessage {
+//   type: 'DETACH_DEBUGGER'
+//   tabId: number
+// }
 
-interface SendCdpCommandMessage {
-  type: 'SEND_CDP_COMMAND'
-  tabId: number
-  method: string
-  params?: any
-  commandId: string
-}
+// interface SendCdpCommandMessage {
+//   type: 'SEND_CDP_COMMAND'
+//   tabId: number
+//   method: string
+//   params?: any
+//   commandId: string
+// }
 
 interface ShowNotificationMessage {
   type: 'SHOW_NOTIFICATION'
@@ -36,33 +44,37 @@ interface ShowNotificationMessage {
 }
 
 type ExtensionMessage =
-  | GetCdpEndpointMessage
-  | AttachDebuggerMessage
-  | DetachDebuggerMessage
-  | SendCdpCommandMessage
-  | ShowNotificationMessage
+  // | GetCdpEndpointMessage
+  // | AttachDebuggerMessage
+  // | DetachDebuggerMessage
+  // | SendCdpCommandMessage
+  ShowNotificationMessage
 
 // Handle messages from side panel
 chrome.runtime.onMessage.addListener((request: ExtensionMessage, sender, sendResponse) => {
-  if (request.type === 'GET_CDP_ENDPOINT') {
-    handleGetCdpEndpoint(request, sendResponse)
-    return true // Will respond asynchronously
-  }
+  // ❌ NOT NEEDED: CDP Endpoint proxy - using direct localhost:9222 instead
+  // if (request.type === 'GET_CDP_ENDPOINT') {
+  //   handleGetCdpEndpoint(request, sendResponse)
+  //   return true // Will respond asynchronously
+  // }
 
-  if (request.type === 'ATTACH_DEBUGGER') {
-    handleAttachDebugger(request, sendResponse)
-    return true // Will respond asynchronously
-  }
+  // ❌ NOT NEEDED: Debugger attachment - Playwright manages this
+  // if (request.type === 'ATTACH_DEBUGGER') {
+  //   handleAttachDebugger(request, sendResponse)
+  //   return true // Will respond asynchronously
+  // }
 
-  if (request.type === 'DETACH_DEBUGGER') {
-    handleDetachDebugger(request, sendResponse)
-    return true // Will respond asynchronously
-  }
+  // ❌ NOT NEEDED: Debugger detachment - Playwright manages this
+  // if (request.type === 'DETACH_DEBUGGER') {
+  //   handleDetachDebugger(request, sendResponse)
+  //   return true // Will respond asynchronously
+  // }
 
-  if (request.type === 'SEND_CDP_COMMAND') {
-    handleSendCdpCommand(request, sendResponse)
-    return true // Will respond asynchronously
-  }
+  // ❌ NOT NEEDED: CDP command proxy - using direct CDP connection
+  // if (request.type === 'SEND_CDP_COMMAND') {
+  //   handleSendCdpCommand(request, sendResponse)
+  //   return true // Will respond asynchronously
+  // }
 
   if (request.type === 'SHOW_NOTIFICATION') {
     handleShowNotification(request, sendResponse)
@@ -74,6 +86,10 @@ chrome.runtime.onMessage.addListener((request: ExtensionMessage, sender, sendRes
   return false // Explicitly return false to prevent "message port closed" errors
 })
 
+// ❌ NOT NEEDED FOR LOCAL PLAYWRIGHT SETUP
+// These handlers are for extension-proxy mode where the extension acts as a CDP proxy
+// With local Playwright setup, we use direct CDP at localhost:9222
+/*
 async function handleGetCdpEndpoint(
   request: GetCdpEndpointMessage,
   sendResponse: (response: any) => void,
@@ -203,6 +219,7 @@ chrome.debugger.onDetach.addListener((source, reason) => {
     console.log(`Debugger detached for non-tab target (no tabId): ${reason}`)
   }
 })
+*/
 
 // Open side panel when extension icon is clicked
 chrome.action.onClicked.addListener((tab) => {

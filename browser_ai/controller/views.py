@@ -15,6 +15,9 @@ class SearchYouTubeAction(BaseModel):
 class SearchEcommerceAction(BaseModel):
 	query: str
 	site: Optional[str] = None  # e.g., 'daraz.lk', 'ikman.lk', 'glomark.lk', 'amazon.com', 'ebay.com', etc.
+ 
+class SearchGoogleWithAiAction(BaseModel):
+	query: str
 
 
 class FindBestWebsiteAction(BaseModel):
