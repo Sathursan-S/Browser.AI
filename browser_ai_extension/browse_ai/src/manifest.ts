@@ -39,12 +39,7 @@ export default defineManifest({
   },
   web_accessible_resources: [
     {
-      resources: [
-        'img/icon16.png',
-        'img/icon32.png',
-        'img/icon48.png',
-        'img/icon128.png',
-      ],
+      resources: ['img/icon16.png', 'img/icon32.png', 'img/icon48.png', 'img/icon128.png'],
       matches: [],
     },
   ],
