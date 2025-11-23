@@ -48,7 +48,6 @@ export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask
   useEffect(() => {
     if (enableVoice) {
       const isSupported = voiceRecognition.isRecognitionSupported()
-      console.log('🎤 Voice Recognition Support Check:', isSupported)
 
       if (isSupported) {
         voiceRecognition.initialize({
@@ -56,9 +55,6 @@ export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask
           interimResults: true,
           language: 'en-US'
         })
-        console.log('🎤 Voice Recognition Initialized')
-      } else {
-        console.warn('🎤 Voice Recognition not available - button will be hidden')
       }
     }
 
@@ -152,17 +148,23 @@ export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask
   }, [input])
 
   return (
-    <div className={`bg-white/10 border border-white/20 rounded-lg overflow-hidden transition-all duration-200 backdrop-blur-sm ${
-      isFocused
-        ? 'border-white/30 shadow-lg shadow-black/20'
-        : 'shadow-md shadow-black/10'
-    }`}>
+    <div className={`
+      bg-slate-100 dark:bg-slate-800/50
+      border border-slate-200 dark:border-slate-700
+      rounded-xl overflow-hidden transition-all duration-200
+      ${isFocused
+        ? 'border-primary/50 ring-2 ring-primary/10 shadow-lg shadow-primary/5'
+        : 'hover:border-slate-300 dark:hover:border-slate-600'
+      }
+    `}>
       <div className="flex items-end gap-2 p-2">
         <textarea
           ref={textareaRef}
-          className={`flex-1 min-h-[32px] max-h-[120px] px-3 py-2 border-0 text-sm bg-transparent resize-none outline-none placeholder-white/50 disabled:cursor-not-allowed leading-relaxed scrollbar-hide ${
-            interimTranscript ? 'text-blue-400 italic' : 'text-white disabled:text-white/50'
-          }`}
+          className={`flex-1 min-h-[32px] max-h-[120px] px-3 py-2 border-0 text-sm bg-transparent resize-none outline-none
+            placeholder-slate-400 dark:placeholder-slate-500
+            disabled:cursor-not-allowed leading-relaxed scrollbar-hide
+            ${interimTranscript ? 'text-primary italic' : 'text-slate-900 dark:text-slate-100 disabled:text-slate-500'}
+          `}
           aria-label={placeholder || 'What would you like me to do?'}
           value={interimTranscript || input}
           onChange={handleInputChange}
@@ -174,8 +176,8 @@ export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask
               ? "Agent is running..."
               : isListening
               ? "Listening... Speak now or click the mic to stop"
-              : isRunning ? 'Task is running... Click Stop to cancel' :
-              isPaused ? 'Task is paused... Click Resume to continue' :
+              : isRunning ? 'Task is running...' :
+              isPaused ? 'Task is paused...' :
               placeholder || 'What would you like me to do?'
           }
           rows={1}
@@ -187,7 +189,7 @@ export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask
           }}
         />
         {voiceError && (
-          <div className="absolute bottom-full left-0 right-0 mb-1 px-3 py-1 bg-red-500/20 border border-red-500/30 rounded-md text-xs text-red-400">
+          <div className="absolute bottom-full left-0 right-0 mb-1 px-3 py-1 bg-red-100 dark:bg-red-900/50 border border-red-200 dark:border-red-800 rounded-md text-xs text-red-600 dark:text-red-400">
             Voice error: {voiceError}
           </div>
         )}
@@ -197,14 +199,14 @@ export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask
               onClick={toggleVoiceInput}
               disabled={disabled}
               size="sm"
-              className={`w-8 h-8 p-0 transition-all duration-200 shadow-lg border ${
+              className={`w-8 h-8 p-0 rounded-lg transition-all duration-200 border ${
                 isListening
-                  ? 'bg-gradient-to-r from-[#f44336] to-[#d32f2f] hover:from-[#d32f2f] hover:to-[#c62828] text-white shadow-red-500/30 border-red-400/30 animate-pulse'
-                  : 'bg-gradient-to-r from-[#9c27b0] to-[#7b1fa2] hover:from-[#7b1fa2] hover:to-[#6a1b9a] text-white shadow-purple-500/30 border-purple-400/30'
+                  ? 'bg-red-500 text-white border-red-600 hover:bg-red-600 animate-pulse'
+                  : 'bg-transparent text-slate-500 dark:text-slate-400 border-transparent hover:bg-slate-200 dark:hover:bg-slate-700'
               }`}
               title={isListening ? 'Stop listening' : 'Start voice input'}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                 {isListening ? (
                   <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
                 ) : (
@@ -214,28 +216,30 @@ export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask
               </svg>
             </Button>
           )}
+
           {isRunning && !isPaused && (
-            <Button
-              onClick={handlePause}
-              size="sm"
-              className="w-8 h-8 p-0 transition-all duration-200 bg-gradient-to-r from-[#2196f3] to-[#1976d2] hover:from-[#1976d2] hover:to-[#1565c0] text-white shadow-lg shadow-blue-500/30 border border-blue-400/30"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                <rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor" />
-                <rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor" />
-              </svg>
-            </Button>
+             <Button
+               onClick={handlePause}
+               size="sm"
+               className="w-8 h-8 p-0 rounded-lg bg-blue-500 text-white hover:bg-blue-600 border border-blue-600 shadow-sm"
+             >
+               <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                 <rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor" />
+                 <rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor" />
+               </svg>
+             </Button>
           )}
+
           <Button
             onClick={handleSubmit}
             disabled={!isRunning && !isPaused && (!input.trim() || disabled)}
             size="sm"
-            className={`w-8 h-8 p-0 transition-all duration-200 shadow-lg border ${
+            className={`w-8 h-8 p-0 rounded-lg transition-all duration-200 shadow-sm border ${
               isRunning && !isPaused
-                ? 'bg-gradient-to-r from-[#f44336] to-[#d32f2f] hover:from-[#d32f2f] hover:to-[#c62828] text-white shadow-red-500/30 border-red-400/30'
+                ? 'bg-red-500 hover:bg-red-600 text-white border-red-600 shadow-red-500/20'
                 : isPaused
-                ? 'bg-gradient-to-r from-[#4caf50] to-[#388e3c] hover:from-[#388e3c] hover:to-[#2e7d32] text-white shadow-green-500/30 border-green-400/30'
-                : 'bg-gradient-to-r from-[#2196f3] to-[#1976d2] hover:from-[#1976d2] hover:to-[#1565c0] text-white shadow-blue-500/30 border-blue-400/30'
+                ? 'bg-green-500 hover:bg-green-600 text-white border-green-600 shadow-green-500/20'
+                : 'bg-primary hover:bg-blue-600 text-white border-blue-600 shadow-blue-500/20'
             }`}
           >
             {isRunning && !isPaused ? (
@@ -247,8 +251,8 @@ export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask
                 <polygon points="8,5 19,12 8,19" fill="currentColor" />
               </svg>
             ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                <path d="M2 21L23 12L2 3V10L17 12L2 14V21Z" fill="currentColor" />
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M5 12h14m-6-6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             )}
           </Button>
