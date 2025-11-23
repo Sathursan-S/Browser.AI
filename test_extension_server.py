@@ -63,7 +63,7 @@ class TestWebApp(unittest.TestCase):
 
         # Simulate task completion
         app.event_adapter.emit_custom_event(
-            EventType.STATUS,
+            EventType.TASK_STATUS,
             {"is_running": False, "current_task": "Task completed successfully!"},
             LogLevel.INFO,
         )
@@ -71,7 +71,7 @@ class TestWebApp(unittest.TestCase):
 
         # Simulate task failure
         app.event_adapter.emit_custom_event(
-            EventType.STATUS,
+            EventType.TASK_STATUS,
             {"is_running": False, "current_task": "Task failed due to an error."},
             LogLevel.ERROR,
         )
