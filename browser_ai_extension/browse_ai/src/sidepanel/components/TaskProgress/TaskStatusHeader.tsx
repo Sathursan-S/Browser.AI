@@ -17,6 +17,16 @@ export const TaskStatusHeader: React.FC<TaskStatusHeaderProps> = ({ task, status
     }
   }, [status])
 
+  // Handle click outside to collapse (if expanded)
+  // Since this is a sticky header, "outside" is the rest of the app.
+  // We can use a backdrop if needed, but user said "click anywhere toggle off the task header"
+  // Actually "toggle off the task header after task finish" -> implies collapsing or hiding?
+  // "if dismiss -> clear the whole chat and remove the task header" -> onClose handles this.
+
+  // For "Click anywhere toggle off", we'll just handle explicit collapse via button or header click.
+  // Implementing a global click listener inside a component is risky for event bubbling.
+  // The SidePanel parent can handle clicks on the main content to collapse this if needed.
+
   return (
     <div
       className={`
@@ -28,24 +38,49 @@ export const TaskStatusHeader: React.FC<TaskStatusHeaderProps> = ({ task, status
     >
       <div className="p-4">
         <div className="flex gap-3 items-start">
-          {/* Status Indicator */}
-          <div className="mt-1.5 relative shrink-0">
-             {status === 'running' && (
-               <>
-                 <div className="absolute inset-0 bg-blue-500 blur-sm opacity-20 animate-pulse rounded-full" />
-                 <div className="relative w-2.5 h-2.5 rounded-full bg-blue-500" />
-               </>
+          {/* Animated Bot Head / Status Icon */}
+          <div className="mt-1 relative shrink-0 w-8 h-8 flex items-center justify-center">
+             {status === 'running' ? (
+               <div className="relative w-full h-full">
+                 {/* Copilot-style ring animation */}
+                 <div className="absolute inset-0 border-2 border-blue-500 rounded-full animate-[spin_3s_linear_infinite]" style={{ borderTopColor: 'transparent', borderRightColor: 'transparent' }} />
+                 <div className="absolute inset-1 border-2 border-purple-500 rounded-full animate-[spin_2s_linear_infinite_reverse]" style={{ borderBottomColor: 'transparent', borderLeftColor: 'transparent' }} />
+
+                 {/* Central Bot Face */}
+                 <div className="absolute inset-2 bg-gradient-to-tr from-blue-600 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                      <path d="M12 2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2 2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" />
+                      <rect x="4" y="8" width="16" height="12" rx="2" />
+                      <path d="M9 14h.01M15 14h.01" strokeLinecap="round" />
+                    </svg>
+                 </div>
+               </div>
+             ) : status === 'completed' ? (
+               <div className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center shadow-lg shadow-green-500/30 animate-[fadeIn_0.3s_ease-out]">
+                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                   <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+                 </svg>
+               </div>
+             ) : status === 'failed' ? (
+               <div className="w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg shadow-red-500/30">
+                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                   <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
+                 </svg>
+               </div>
+             ) : (
+               <div className="w-8 h-8 rounded-full bg-yellow-500 text-white flex items-center justify-center">
+                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                   <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.77a2 2 0 0 0-1.94 1.51l-1.1 6a2 2 0 0 0 .2 1.49l1.2 2.12" />
+                 </svg>
+               </div>
              )}
-             {status === 'completed' && <div className="w-2.5 h-2.5 rounded-full bg-green-500 shadow-sm shadow-green-500/50" />}
-             {status === 'failed' && <div className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm shadow-red-500/50" />}
-             {status === 'paused' && <div className="w-2.5 h-2.5 rounded-full bg-yellow-500" />}
           </div>
 
           <div className="flex-1 min-w-0">
             <div className="flex justify-between items-start gap-2">
-              <div>
+              <div onClick={() => setExpanded(!expanded)} className="cursor-pointer">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-0.5">
-                  {status === 'running' ? 'Current Task' : 'Task Finished'}
+                  {status === 'running' ? 'AI Agent Working...' : status === 'completed' ? 'Task Completed' : 'Task Failed'}
                 </h3>
                 <p className={`text-sm font-medium text-slate-900 dark:text-slate-100 break-words leading-snug ${expanded ? '' : 'line-clamp-2'}`}>
                   {task}
@@ -93,9 +128,9 @@ export const TaskStatusHeader: React.FC<TaskStatusHeaderProps> = ({ task, status
                      {onClose && (
                        <button
                          onClick={onClose}
-                         className="text-xs px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
+                         className="text-xs px-2 py-1 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded hover:bg-red-100 dark:hover:bg-red-900/30"
                        >
-                         Dismiss
+                         Dismiss & Clear
                        </button>
                      )}
                   </div>
