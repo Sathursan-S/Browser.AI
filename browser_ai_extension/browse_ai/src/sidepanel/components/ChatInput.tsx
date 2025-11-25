@@ -12,15 +12,23 @@ interface ChatInputProps {
   isPaused?: boolean
   placeholder?: string
   enableVoice?: boolean // Optional voice input toggle
+  onListeningChange?: (isListening: boolean) => void // Prop to notify parent
 }
 
-export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask, disabled = false, isRunning = false, isPaused = false, placeholder, enableVoice = true }: ChatInputProps) => {
+export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask, disabled = false, isRunning = false, isPaused = false, placeholder, enableVoice = true, onListeningChange }: ChatInputProps) => {
   const [input, setInput] = useState('')
   const [isFocused, setIsFocused] = useState(false)
   const [isListening, setIsListening] = useState(false)
   const [interimTranscript, setInterimTranscript] = useState('')
   const [voiceError, setVoiceError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Notify parent of listening state changes
+  useEffect(() => {
+    if (onListeningChange) {
+      onListeningChange(isListening)
+    }
+  }, [isListening, onListeningChange])
 
   // Hide scrollbar styles
   useEffect(() => {

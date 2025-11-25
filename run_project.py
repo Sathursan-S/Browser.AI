@@ -121,23 +121,9 @@ def launch_chrome_debug_mode(
 
     # Create user data directory if not specified
     if not user_data_dir:
-        if platform.system() == "Windows":
-            user_data_dir = os.path.join(
-                os.getenv("LOCALAPPDATA", "C:\\Users\\Default\\AppData\\Local"),
-                "Google",
-                "Chrome",
-                "User Data",
-                "Default",
-            )
-        elif platform.system() == "Darwin":  # macOS
-            user_data_dir = os.path.expanduser(
-                "~/Library/Application Support/Google/Chrome/Default"
-            )
-        elif platform.system() == "Linux":
-            user_data_dir = os.path.expanduser("~/.config/google-chrome/Default")
-        else:
-            print_error("Unsupported operating system")
-            return None
+        user_data_dir = os.path.join(
+            os.path.expanduser("~"), ".browser_ai_chrome_profile"
+        )
 
     # Ensure user data directory exists
     os.makedirs(user_data_dir, exist_ok=True)
