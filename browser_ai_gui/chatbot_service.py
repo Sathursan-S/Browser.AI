@@ -117,7 +117,7 @@ Remember:
         # Initialize Gemini
         try:
             self.llm = ChatGoogleGenerativeAI(
-                model="gemini-2.0-flash-exp",
+                model="gemini-2.0-flash-lite",
                 google_api_key=api_key,
                 temperature=0.7,  # Slightly creative for conversational responses
                 max_output_tokens=1000,
