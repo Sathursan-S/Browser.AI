@@ -46,7 +46,7 @@ export const SidePanel = () => {
 
   // UI State
   const [concentrationMode, setConcentrationMode] = useState(false)
-  const [taskResult, setTaskResult] = useState<string>("")
+  const [taskResult, setTaskResult] = useState<string>('')
 
   const [settings, setSettings] = useState<ExtensionSettings>(DEFAULT_SETTINGS)
   const [cdpEndpoint, setCdpEndpoint] = useState('')
@@ -72,7 +72,7 @@ export const SidePanel = () => {
   // Auto-scroll logs
   useEffect(() => {
     if (scrollRef.current && !concentrationMode) {
-       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [logs, concentrationMode])
 
@@ -110,28 +110,36 @@ export const SidePanel = () => {
   }, [])
 
   // Persistence
-  useEffect(() => { saveTaskStatus(taskStatus) }, [taskStatus])
-  useEffect(() => { if (cdpEndpoint) saveCdpEndpoint(cdpEndpoint) }, [cdpEndpoint])
+  useEffect(() => {
+    saveTaskStatus(taskStatus)
+  }, [taskStatus])
+  useEffect(() => {
+    if (cdpEndpoint) saveCdpEndpoint(cdpEndpoint)
+  }, [cdpEndpoint])
 
   // Update Page Overlay based on status
   const updateOverlay = useCallback(async (status: string, isError: boolean = false) => {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
       if (tab?.id) {
-        chrome.tabs.sendMessage(tab.id, {
-          type: 'SHOW_OVERLAY_STATUS',
-          message: status,
-          isError
-        }).catch(() => {})
+        chrome.tabs
+          .sendMessage(tab.id, {
+            type: 'SHOW_OVERLAY_STATUS',
+            message: status,
+            isError,
+          })
+          .catch(() => {})
       }
-    } catch (e) { console.error(e) }
+    } catch (e) {
+      console.error(e)
+    }
   }, [])
 
   const hideOverlay = useCallback(async () => {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
       if (tab?.id) {
-         chrome.tabs.sendMessage(tab.id, { type: 'HIDE_OVERLAY' }).catch(() => {})
+        chrome.tabs.sendMessage(tab.id, { type: 'HIDE_OVERLAY' }).catch(() => {})
       }
     } catch (e) {}
   }, [])
@@ -161,10 +169,10 @@ export const SidePanel = () => {
       setTaskStatus(status)
       if (!status.is_running) {
         if (status.current_task?.includes('failed')) {
-           updateOverlay('Task Failed', true)
+          updateOverlay('Task Failed', true)
         } else if (status.current_task?.includes('completed')) {
-           updateOverlay('Task Completed', false)
-           setTimeout(hideOverlay, 3000)
+          updateOverlay('Task Completed', false)
+          setTimeout(hideOverlay, 3000)
         }
       } else {
         updateOverlay('Browser.AI Running...', false)
@@ -176,29 +184,35 @@ export const SidePanel = () => {
 
       // Update overlay with high-level steps
       if (event.event_type === 'agent_step') {
-         const title = event.message.replace(/Step \d+:/i, '').trim()
-         updateOverlay(title || 'Processing step...', false)
+        const title = event.message.replace(/Step \d+:/i, '').trim()
+        updateOverlay(title || 'Processing step...', false)
       }
 
       // Capture result from logs if available (heuristic)
-      if (event.event_type === 'agent_result' || (event.message.includes('Result:') && event.level === 'INFO')) {
-         setTaskResult(event.message.replace('Result:', '').trim())
+      if (
+        event.event_type === 'agent_result' ||
+        (event.message.includes('Result:') && event.level === 'INFO')
+      ) {
+        setTaskResult(event.message.replace('Result:', '').trim())
       }
     })
 
     newSocket.on('task_started', (data: { message: string }) => {
       setLogs([])
-      setTaskResult("")
+      setTaskResult('')
       updateOverlay('Starting Task...', false)
     })
 
     // Explicit task result event handling if backend sends it
-    newSocket.on('task_result', (result: { task: string; success: boolean; history: string | null }) => {
-       if (result.success && result.history) {
+    newSocket.on(
+      'task_result',
+      (result: { task: string; success: boolean; history: string | null }) => {
+        if (result.success && result.history) {
           // Try to extract final text or just use a success message
-          setTaskResult("Task completed successfully.")
-       }
-    })
+          setTaskResult('Task completed successfully.')
+        }
+      },
+    )
 
     setSocket(newSocket)
     socketRef.current = newSocket
@@ -231,7 +245,7 @@ export const SidePanel = () => {
     socket.emit('start_task', payload)
 
     setLogs([])
-    setTaskResult("")
+    setTaskResult('')
 
     // If we started via voice (implied if we are in concentration mode or isListening was true recently),
     // keep concentration mode on.
@@ -253,6 +267,39 @@ export const SidePanel = () => {
     }
   }, [isListening])
 
+  // Space bar to toggle listening
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.code === 'Space' &&
+        !(
+          document.activeElement?.tagName === 'INPUT' ||
+          document.activeElement?.tagName === 'TEXTAREA'
+        )
+      ) {
+        e.preventDefault()
+        setIsListening(true)
+      }
+    }
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (
+        e.code === 'Space' &&
+        !(
+          document.activeElement?.tagName === 'INPUT' ||
+          document.activeElement?.tagName === 'TEXTAREA'
+        )
+      ) {
+        setIsListening(false)
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('keyup', handleKeyUp)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('keyup', handleKeyUp)
+    }
+  }, [])
+
   return (
     <Layout>
       {/* Header */}
@@ -262,13 +309,22 @@ export const SidePanel = () => {
             <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-600 to-blue-400 flex items-center justify-center shadow-lg shadow-blue-500/20">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="text-white">
                 <circle cx="12" cy="12" r="3" fill="currentColor" />
-                <path d="M12 2v4m0 12v4m10-10h-4M6 12H2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                <path
+                  d="M12 2v4m0 12v4m10-10h-4M6 12H2"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
               </svg>
             </div>
             <div>
-              <h1 className="text-sm font-bold text-slate-900 dark:text-white leading-none">Browser.AI</h1>
+              <h1 className="text-sm font-bold text-slate-900 dark:text-white leading-none">
+                Browser.AI
+              </h1>
               <div className="flex items-center gap-1.5 mt-1">
-                <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`}
+                />
                 <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
                   {connected ? 'Online' : 'Offline'}
                 </span>
@@ -277,7 +333,7 @@ export const SidePanel = () => {
           </div>
 
           <div className="flex items-center gap-1">
-             {/* Concentration Mode Toggle */}
+            {/* Concentration Mode Toggle */}
             <button
               onClick={() => setConcentrationMode(!concentrationMode)}
               className={`p-2 rounded-lg transition-colors ${
@@ -287,22 +343,70 @@ export const SidePanel = () => {
               }`}
               title="Toggle Focus Mode"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <circle cx="12" cy="12" r="10" />
                 <circle cx="12" cy="12" r="3" />
               </svg>
             </button>
+
+            {/* Voice Listening Toggle - Only in Concentration Mode */}
+            {concentrationMode && (
+              <button
+                onClick={() => setIsListening(!isListening)}
+                className={`p-2 rounded-lg transition-colors ${
+                  isListening
+                    ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                    : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+                }`}
+                title="Toggle Voice Listening"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                  <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
+                  <line x1="12" y1="19" x2="12" y2="23" />
+                  <line x1="8" y1="23" x2="16" y2="23" />
+                </svg>
+              </button>
+            )}
 
             <button
               onClick={toggleTheme}
               className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
             >
               {theme === 'light' ? (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
                 </svg>
               ) : (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <circle cx="12" cy="12" r="5" />
                   <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
                 </svg>
@@ -312,7 +416,14 @@ export const SidePanel = () => {
               onClick={openOptionsPage}
               className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
             >
-               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <circle cx="12" cy="12" r="3" />
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
               </svg>
@@ -329,15 +440,19 @@ export const SidePanel = () => {
         {/* Active Task Banner / Sticky Header */}
         {(taskStatus.is_running || taskStatus.current_task) && (
           <TaskStatusHeader
-            task={taskStatus.current_task || "Unknown Task"}
+            task={taskStatus.current_task || 'Unknown Task'}
             status={
-              taskStatus.is_paused ? 'paused' :
-              taskStatus.is_running ? 'running' :
-              logs.find(l => l.level === 'ERROR') ? 'failed' : 'completed'
+              taskStatus.is_paused
+                ? 'paused'
+                : taskStatus.is_running
+                  ? 'running'
+                  : logs.find((l) => l.level === 'ERROR')
+                    ? 'failed'
+                    : 'completed'
             }
             result={taskResult}
             onClose={() => {
-              setTaskResult("")
+              setTaskResult('')
               // Optional: Clear task status here or just hide UI
             }}
           />
@@ -351,15 +466,22 @@ export const SidePanel = () => {
             {/* Minimal controls for concentration mode */}
             {taskStatus.is_running && (
               <div className="mt-8">
-                 <button
-                   onClick={handleStopTask}
-                   className="px-6 py-3 bg-red-500 hover:bg-red-600 text-white rounded-full font-medium shadow-lg shadow-red-500/30 transition-transform active:scale-95 flex items-center gap-2"
-                 >
-                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                   </svg>
-                   Stop Task
-                 </button>
+                <button
+                  onClick={handleStopTask}
+                  className="px-6 py-3 bg-red-500 hover:bg-red-600 text-white rounded-full font-medium shadow-lg shadow-red-500/30 transition-transform active:scale-95 flex items-center gap-2"
+                >
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                  </svg>
+                  Stop Task
+                </button>
               </div>
             )}
           </div>
@@ -369,9 +491,24 @@ export const SidePanel = () => {
             {!taskStatus.is_running && logs.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center p-8 text-center opacity-0 animate-[fadeInUp_0.5s_ease-out_forwards]">
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 flex items-center justify-center mb-6">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" className="text-blue-500 dark:text-blue-400">
-                    <path d="M12 2a10 10 0 0 1 10 10 10 10 0 0 1-10 10A10 10 0 0 1 2 12 10 10 0 0 1 12 2z" stroke="currentColor" strokeWidth="2"/>
-                    <path d="M12 16v-4M12 8h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  <svg
+                    width="32"
+                    height="32"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    className="text-blue-500 dark:text-blue-400"
+                  >
+                    <path
+                      d="M12 2a10 10 0 0 1 10 10 10 10 0 0 1-10 10A10 10 0 0 1 2 12 10 10 0 0 1 12 2z"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    />
+                    <path
+                      d="M12 16v-4M12 8h.01"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
                   </svg>
                 </div>
                 <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
@@ -394,7 +531,9 @@ export const SidePanel = () => {
       {/* Hide standard input in concentration mode if listening? No, user might want to type. */}
       {/* But Concentration Mode usually implies Hands-Free. Let's keep it visible but minimal. */}
 
-      <div className={`flex-none p-4 bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 ${concentrationMode ? 'hidden' : ''}`}>
+      <div
+        className={`flex-none p-4 bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 ${concentrationMode ? 'hidden' : ''}`}
+      >
         <ChatInput
           onSendMessage={handleStartTask}
           onStopTask={handleStopTask}
@@ -416,22 +555,22 @@ export const SidePanel = () => {
 
       {/* Voice Controls for Concentration Mode (if we hide standard input) */}
       {concentrationMode && (
-         <div className="flex-none p-6 bg-slate-950 border-t border-slate-800 flex justify-center pb-8">
-            <button
-               onClick={() => {
-                 // Toggle listening
-                 // Note: Ideally we call into ChatInput or VoiceService
-                 // Since logic is in ChatInput, we really should refactor ChatInput to be a controlled component or similar.
-                 // For this immediate task, let's assume the user toggles back to standard view to type,
-                 // OR we put the ChatInput *inside* the concentration view but styled differently?
-                 // Let's just provide a "Close Focus Mode" button.
-                 setConcentrationMode(false)
-               }}
-               className="text-slate-400 hover:text-white text-sm font-medium"
-            >
-              Exit Focus Mode
-            </button>
-         </div>
+        <div className="flex-none p-6 bg-slate-950 border-t border-slate-800 flex justify-center pb-8">
+          <button
+            onClick={() => {
+              // Toggle listening
+              // Note: Ideally we call into ChatInput or VoiceService
+              // Since logic is in ChatInput, we really should refactor ChatInput to be a controlled component or similar.
+              // For this immediate task, let's assume the user toggles back to standard view to type,
+              // OR we put the ChatInput *inside* the concentration view but styled differently?
+              // Let's just provide a "Close Focus Mode" button.
+              setConcentrationMode(false)
+            }}
+            className="text-slate-400 hover:text-white text-sm font-medium"
+          >
+            Exit Focus Mode
+          </button>
+        </div>
       )}
     </Layout>
   )
