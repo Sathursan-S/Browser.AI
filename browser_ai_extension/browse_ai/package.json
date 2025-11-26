@@ -25,10 +25,12 @@
   "dependencies": {
     "@radix-ui/react-slot": "^1.0.2",
     "class-variance-authority": "^0.7.0",
-    "clsx": "^2.1.1",
+    "clsx": "^2.0.0",
+    "lottie-react": "^2.4.1",
     "lucide-react": "^0.263.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-voice-visualizer": "^2.0.8",
     "socket.io-client": "^4.7.2",
     "tailwind-merge": "^1.14.0"
   },

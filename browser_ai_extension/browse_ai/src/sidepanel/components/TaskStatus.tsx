@@ -1,37 +1,59 @@
-import React from 'react'
+import React, { useState, useEffect, useRef } from 'react';
+import Lottie from 'lottie-react';
+import botHeadAnimation from '../../assets/bot-head.json';
 
 export interface TaskStatusProps {
-  isRunning: boolean
-  currentTask: string | null
-  isPaused?: boolean
+  isRunning: boolean;
+  currentTask: string | null;
+  isPaused?: boolean;
+  onDismiss: () => void;
 }
 
 export const TaskStatus: React.FC<TaskStatusProps> = ({
   isRunning,
   currentTask,
   isPaused = false,
+  onDismiss,
 }: TaskStatusProps) => {
-  if (!isRunning || !currentTask) {
-    return null
+  const [isVisible, setIsVisible] = useState(isRunning);
+  const taskStatusRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setIsVisible(isRunning);
+  }, [isRunning]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (taskStatusRef.current && !taskStatusRef.current.contains(event.target as Node)) {
+        setIsVisible(false);
+        onDismiss();
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [onDismiss]);
+
+  if (!isVisible || !currentTask) {
+    return null;
   }
 
   return (
-    <div className={`flex items-center gap-4 p-4 bg-white/5 border border-white/10 rounded-xl mb-4 relative overflow-hidden animate-in slide-in-from-top-2 ${isPaused ? 'bg-yellow-500/10 border-yellow-500/20' : ''}`}>
-      {/* Animated top border */}
-      <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${isPaused ? 'from-yellow-400 to-yellow-500' : 'from-blue-500 via-purple-600 to-blue-500'} ${!isPaused ? 'animate-pulse bg-size-200 animate-shimmer' : ''}`}></div>
-      
-      <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full backdrop-blur-sm">
-        <div className={`w-6 h-6 border-2 border-white/20 rounded-full ${!isPaused ? 'border-t-blue-500 animate-spin' : 'border-t-yellow-500'}`}></div>
+    <div ref={taskStatusRef} className="task-status-container">
+      <div className="bot-head">
+        <Lottie animationData={botHeadAnimation} loop={true} />
       </div>
-      
-      <div className="flex-1 min-w-0">
-        <div className={`text-xs font-bold uppercase tracking-wider mb-1 ${isPaused ? 'text-yellow-400' : 'text-blue-400'}`}>
-          {isPaused ? '⏸️ Paused' : '🚀 Running'}
+      <div className="task-info">
+        <div className={`status-badge ${isPaused ? 'paused' : 'running'}`}>
+          {isPaused ? 'Paused' : 'Running'}
         </div>
-        <div className="text-sm text-white/90 font-medium line-clamp-2 leading-relaxed">
-          {currentTask}
-        </div>
+        <div className="task-description">{currentTask}</div>
       </div>
+      <button className="dismiss-btn" onClick={() => { setIsVisible(false); onDismiss(); }}>
+        ✕
+      </button>
     </div>
-  )
-}
+  );
+};
