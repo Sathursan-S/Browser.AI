@@ -22,8 +22,8 @@ api_key = os.getenv("GEMINI_API_KEY", "")
 class LLMConfig:
     """Configuration for Language Model"""
 
-    provider: str = "google"  # openai, anthropic, ollama, google, etc.
-    model: str = "gemini-2.5-flash-lite"
+    provider: str = "openai"  # openai, anthropic, ollama, google, etc.
+    model: str = "gpt-4-turbo"
     api_key: str = SecretStr(api_key) if api_key else SecretStr("")
     base_url: Optional[str] = None  # For custom endpoints
     temperature: float = 0.1
