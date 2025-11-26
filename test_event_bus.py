@@ -14,7 +14,6 @@ import asyncio
 import logging
 import pytest
 from typing import List
-from unittest.mock import MagicMock, AsyncMock
 
 # Import event bus components
 from browser_ai.event_bus import (

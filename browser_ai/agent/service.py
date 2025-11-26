@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import time
 import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar
@@ -64,6 +65,10 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
+
+# Constants for event emission
+CHARS_PER_TOKEN_ESTIMATE = 4  # Rough estimate for token calculation
+ERROR_MESSAGE_MAX_LENGTH = 500  # Maximum length for error messages in events
 
 
 class Agent:
@@ -444,19 +449,21 @@ class Agent:
                 self._make_history_item(model_output, state, result)
 
             # Emit step completed event
+            # Note: n_steps was incremented in get_next_action, so use n_steps - 1 for the completed step
+            completed_step_number = self.n_steps - 1
             step_result = result[-1].extracted_content if result and result[-1].extracted_content else None
             has_error = any(r.error for r in result) if result else False
             if has_error:
                 error_msg = next((r.error for r in result if r.error), "Unknown error")
                 await emit_async(AgentStepFailedEvent(
-                    step_number=self.n_steps - 1,  # n_steps was incremented in get_next_action
+                    step_number=completed_step_number,
                     agent_id=self.agent_id,
-                    error_message=str(error_msg)[:500],
+                    error_message=str(error_msg)[:ERROR_MESSAGE_MAX_LENGTH],
                     error_type=type(error_msg).__name__ if not isinstance(error_msg, str) else "StepError",
                 ))
             else:
                 await emit_async(AgentStepCompletedEvent(
-                    step_number=self.n_steps - 1,
+                    step_number=completed_step_number,
                     agent_id=self.agent_id,
                     actions_taken=actions,
                     result=step_result,
@@ -562,14 +569,13 @@ class Agent:
         await emit_async(LLMRequestStartedEvent(
             model_name=self.model_name,
             purpose="action",
-            input_tokens_estimate=len(str(input_messages)) // 4,  # Rough estimate
+            input_tokens_estimate=len(str(input_messages)) // CHARS_PER_TOKEN_ESTIMATE,
         ))
 
         converted_input_messages = self._convert_input_messages(
             input_messages, self.model_name
         )
 
-        import time
         start_time = time.time()
 
         if (
