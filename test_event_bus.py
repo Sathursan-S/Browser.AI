@@ -322,26 +322,26 @@ class TestLoggingEventHandler:
         # Subscribe to log events
         h = subscribe("log", handler)
 
-        # Enable logging handler
+        # Enable logging handler for a test logger (not browser_ai to avoid recursion)
         log_handler = LoggingEventHandler.enable(
-            logger_name="test_logger",
+            logger_name="test_log_handler",
             level=logging.DEBUG
         )
 
         # Log something
-        logger = logging.getLogger("test_logger")
-        logger.info("Test log message")
+        logger = logging.getLogger("test_log_handler")
+        logger.info("Test log message for event emission")
 
         assert len(received_events) >= 1
         # Find our log message
         found = any(
-            "Test log message" in e.message
+            "Test log message for event emission" in e.message
             for e in received_events
         )
         assert found
 
         # Cleanup
-        LoggingEventHandler.disable("test_logger")
+        LoggingEventHandler.disable("test_log_handler")
         unsubscribe("log", h)
 
 

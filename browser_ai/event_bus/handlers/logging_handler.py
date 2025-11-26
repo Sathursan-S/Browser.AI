@@ -89,6 +89,10 @@ class LoggingEventHandler(logging.Handler):
             record: The log record to emit
         """
         try:
+            # Avoid infinite recursion: don't emit events for event_bus logs
+            if record.name.startswith("browser_ai.event_bus"):
+                return
+
             # Import here to avoid circular imports
             from browser_ai.event_bus.emitter import emit
 

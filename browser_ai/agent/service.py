@@ -41,6 +41,22 @@ from browser_ai.dom.history_tree_processor.service import (
     DOMHistoryElement,
     HistoryTreeProcessor,
 )
+from browser_ai.event_bus import (
+    emit_async,
+    AgentCompletedEvent,
+    AgentFailedEvent,
+    AgentRetryEvent,
+    AgentStartedEvent,
+    AgentStepCompletedEvent,
+    AgentStepFailedEvent,
+    AgentStepStartedEvent,
+    LLMRequestCompletedEvent,
+    LLMRequestStartedEvent,
+    LLMRateLimitEvent,
+    PlanningCompletedEvent,
+    PlanningStartedEvent,
+    UserHelpRequestedEvent,
+)
 from browser_ai.utils import time_execution_async
 from browser_ai.agent.media import create_history_gif
 
@@ -295,6 +311,12 @@ class Agent:
         model_output = None
         result: list[ActionResult] = []
 
+        # Emit step started event
+        await emit_async(AgentStepStartedEvent(
+            step_number=self.n_steps,
+            agent_id=self.agent_id,
+        ))
+
         try:
             state = await self.browser_context.get_state()
 
@@ -349,6 +371,12 @@ class Agent:
                 logger.warning(
                     "🙋‍♂️ Task requires user intervention - pausing execution"
                 )
+
+                # Emit user help requested event
+                await emit_async(UserHelpRequestedEvent(
+                    request_message="Task requires user intervention (e.g., CAPTCHA, login)",
+                    step_number=self.n_steps,
+                ))
 
                 # Store the current page URL to detect when user completes the intervention
                 current_page = await self.browser_context.get_current_page()
@@ -415,6 +443,25 @@ class Agent:
             if state:
                 self._make_history_item(model_output, state, result)
 
+            # Emit step completed event
+            step_result = result[-1].extracted_content if result and result[-1].extracted_content else None
+            has_error = any(r.error for r in result) if result else False
+            if has_error:
+                error_msg = next((r.error for r in result if r.error), "Unknown error")
+                await emit_async(AgentStepFailedEvent(
+                    step_number=self.n_steps - 1,  # n_steps was incremented in get_next_action
+                    agent_id=self.agent_id,
+                    error_message=str(error_msg)[:500],
+                    error_type=type(error_msg).__name__ if not isinstance(error_msg, str) else "StepError",
+                ))
+            else:
+                await emit_async(AgentStepCompletedEvent(
+                    step_number=self.n_steps - 1,
+                    agent_id=self.agent_id,
+                    actions_taken=actions,
+                    result=step_result,
+                ))
+
     async def _handle_step_error(self, error: Exception) -> list[ActionResult]:
         """Handle all types of errors that can occur during a step"""
         include_trace = logger.isEnabledFor(logging.DEBUG)
@@ -437,6 +484,11 @@ class Agent:
             self.consecutive_failures += 1
         elif isinstance(error, RateLimitError) or isinstance(error, ResourceExhausted):
             logger.warning(f"{prefix}{error_msg}")
+            # Emit rate limit event
+            await emit_async(LLMRateLimitEvent(
+                model_name=self.model_name,
+                retry_after_seconds=self.retry_delay,
+            ))
             await asyncio.sleep(self.retry_delay)
             self.consecutive_failures += 1
         else:
@@ -506,9 +558,19 @@ class Agent:
     @time_execution_async("--get_next_action")
     async def get_next_action(self, input_messages: list[BaseMessage]) -> AgentOutput:
         """Get next action from LLM based on current state"""
+        # Emit LLM request started event
+        await emit_async(LLMRequestStartedEvent(
+            model_name=self.model_name,
+            purpose="action",
+            input_tokens_estimate=len(str(input_messages)) // 4,  # Rough estimate
+        ))
+
         converted_input_messages = self._convert_input_messages(
             input_messages, self.model_name
         )
+
+        import time
+        start_time = time.time()
 
         if (
             self.model_name == "deepseek-reasoner"
@@ -539,8 +601,17 @@ class Agent:
             response: dict[str, Any] = await structured_llm.ainvoke(input_messages)  # type: ignore
             parsed: AgentOutput | None = response["parsed"]
 
+        response_time_ms = (time.time() - start_time) * 1000
+
         if parsed is None:
             raise ValueError("Could not parse response.")
+
+        # Emit LLM request completed event
+        await emit_async(LLMRequestCompletedEvent(
+            model_name=self.model_name,
+            purpose="action",
+            response_time_ms=response_time_ms,
+        ))
 
         # cut the number of actions to max_actions_per_step
         parsed.action = parsed.action[: self.max_actions_per_step]
@@ -620,6 +691,14 @@ class Agent:
     @observe(name="agent.run", ignore_output=True)
     async def run(self, max_steps: int = 100) -> AgentHistoryList:
         """Execute the task with maximum number of steps"""
+        # Emit agent started event
+        await emit_async(AgentStartedEvent(
+            task=self.task,
+            agent_id=self.agent_id,
+            use_vision=self.use_vision,
+        ))
+
+        task_success = False
         try:
             self._log_agent_run()
 
@@ -651,6 +730,7 @@ class Agent:
                             continue
 
                     logger.info("✅ Task completed successfully")
+                    task_success = True
                     if self.register_done_callback:
                         self.register_done_callback(self.history)
                     break
@@ -659,6 +739,24 @@ class Agent:
 
             return self.history
         finally:
+            # Emit agent completed/failed event
+            final_result = self.history.final_result() if self.history.history else None
+            if task_success:
+                await emit_async(AgentCompletedEvent(
+                    task=self.task,
+                    agent_id=self.agent_id,
+                    total_steps=self.n_steps,
+                    success=True,
+                    final_result=final_result,
+                ))
+            else:
+                await emit_async(AgentFailedEvent(
+                    task=self.task,
+                    agent_id=self.agent_id,
+                    error_message="Task did not complete successfully",
+                    total_steps=self.n_steps,
+                ))
+
             if not self.injected_browser_context:
                 await self.browser_context.close()
 
@@ -1048,6 +1146,12 @@ class Agent:
         if not self.planner_llm:
             return None
 
+        # Emit planning started event
+        await emit_async(PlanningStartedEvent(
+            task=self.task,
+            agent_id=self.agent_id,
+        ))
+
         # Create planner message history using full message history
         planner_messages = [
             PlannerPrompt(self.action_descriptions).get_system_message(),
@@ -1080,14 +1184,28 @@ class Agent:
         # if deepseek-reasoner, remove think tags
         if self.planner_model_name == "deepseek-reasoner":
             plan = self._remove_think_tags(plan)
+
+        # Parse and emit planning completed event
+        plan_steps = []
         try:
             plan_json = json.loads(plan)
             logger.info(f"Planning Analysis:\n{json.dumps(plan_json, indent=4)}")
+            # Try to extract steps if plan is structured
+            if isinstance(plan_json, dict) and "steps" in plan_json:
+                plan_steps = plan_json["steps"]
+            elif isinstance(plan_json, list):
+                plan_steps = [str(s) for s in plan_json]
         except json.JSONDecodeError:
             logger.info(f"Planning Analysis:\n{plan}")
+            plan_steps = [plan[:200]] if plan else []
         except Exception as e:
             logger.debug(f"Error parsing planning analysis: {e}")
             logger.info(f"Plan: {plan}")
+
+        await emit_async(PlanningCompletedEvent(
+            plan_steps=plan_steps,
+            agent_id=self.agent_id,
+        ))
 
         return plan
 
