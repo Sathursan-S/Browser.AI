@@ -14,12 +14,10 @@ interface StepItemProps {
 }
 
 export const StepItem: React.FC<StepItemProps> = ({ step, isLast }) => {
-  // Auto-expand if running or failed, otherwise collapsed by default
   const [isExpanded, setIsExpanded] = useState(
     step.status === 'running' || step.status === 'failed'
   )
 
-  // Update expansion state if status changes to running
   React.useEffect(() => {
     if (step.status === 'running') {
       setIsExpanded(true)
@@ -50,7 +48,7 @@ export const StepItem: React.FC<StepItemProps> = ({ step, isLast }) => {
             </svg>
           </div>
         )
-      default: // pending
+      default:
         return (
           <div className="w-5 h-5 flex items-center justify-center">
             <div className="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600" />
@@ -61,7 +59,6 @@ export const StepItem: React.FC<StepItemProps> = ({ step, isLast }) => {
 
   return (
     <div className="relative pl-8 pb-4">
-      {/* Connector Line */}
       {!isLast && (
         <div
           className={`absolute left-[10px] top-7 bottom-0 w-[2px]
@@ -70,7 +67,6 @@ export const StepItem: React.FC<StepItemProps> = ({ step, isLast }) => {
         />
       )}
 
-      {/* Status Icon */}
       <div className={`absolute left-0 top-1 w-6 h-6 rounded-full bg-white dark:bg-slate-900 border
         ${step.status === 'running' ? 'border-primary shadow-sm shadow-primary/20' :
           step.status === 'completed' ? 'border-green-500/20 bg-green-50 dark:bg-green-900/10' :
@@ -81,7 +77,6 @@ export const StepItem: React.FC<StepItemProps> = ({ step, isLast }) => {
         {getStatusIcon()}
       </div>
 
-      {/* Header */}
       <div
         className="flex items-center justify-between cursor-pointer group"
         onClick={() => setIsExpanded(!isExpanded)}
@@ -101,7 +96,6 @@ export const StepItem: React.FC<StepItemProps> = ({ step, isLast }) => {
         </button>
       </div>
 
-      {/* Details (Logs) */}
       <div
         className={`grid transition-all duration-300 ease-in-out ${isExpanded ? 'grid-rows-[1fr] opacity-100 mt-2' : 'grid-rows-[0fr] opacity-0'}`}
       >

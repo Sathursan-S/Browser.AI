@@ -14,18 +14,15 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [theme, setThemeState] = useState<Theme>('light')
 
   useEffect(() => {
-    // Load saved theme or default to light
     const savedTheme = localStorage.getItem('theme') as Theme
     if (savedTheme) {
       setThemeState(savedTheme)
     } else {
-      // Default manual preference: Light
       setThemeState('light')
     }
   }, [])
 
   useEffect(() => {
-    // Update DOM and LocalStorage
     const root = window.document.documentElement
     root.classList.remove('light', 'dark')
     root.classList.add(theme)

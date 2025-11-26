@@ -79,7 +79,6 @@ export const VoiceVisualizer: React.FC<VoiceVisualizerProps> = ({ isListening, i
       if (isListening || isSpeaking) {
         ctx.shadowColor = 'rgba(168, 85, 247, 0.5)'
         ctx.shadowBlur = 20
-        // Redraw to apply shadow (optimized: usually do this in separate pass but for simple viz it's ok)
       } else {
         ctx.shadowBlur = 0
       }

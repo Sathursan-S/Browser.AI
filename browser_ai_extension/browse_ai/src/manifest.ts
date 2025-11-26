@@ -37,24 +37,13 @@ export default defineManifest({
   side_panel: {
     default_path: 'sidepanel.html',
   },
-  // @ts-ignore
-  content_scripts: [
-    {
-      matches: ['<all_urls>'],
-      // @ts-ignore
-      js: ['src/content/index.tsx'],
-      // @ts-ignore
-      run_at: 'document_end',
-    },
-  ],
-  // @ts-ignore
   web_accessible_resources: [
     {
       resources: ['img/icon16.png', 'img/icon32.png', 'img/icon48.png', 'img/icon128.png'],
       matches: [],
     },
   ],
-  permissions: ['sidePanel', 'storage', 'debugger', 'tabs', 'activeTab', 'scripting'],
+  permissions: ['sidePanel', 'storage', 'debugger', 'tabs', 'activeTab'],
   // @ts-ignore
   host_permissions: ['<all_urls>'],
 })

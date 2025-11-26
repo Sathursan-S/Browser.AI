@@ -17,16 +17,6 @@ export const TaskStatusHeader: React.FC<TaskStatusHeaderProps> = ({ task, status
     }
   }, [status])
 
-  // Handle click outside to collapse (if expanded)
-  // Since this is a sticky header, "outside" is the rest of the app.
-  // We can use a backdrop if needed, but user said "click anywhere toggle off the task header"
-  // Actually "toggle off the task header after task finish" -> implies collapsing or hiding?
-  // "if dismiss -> clear the whole chat and remove the task header" -> onClose handles this.
-
-  // For "Click anywhere toggle off", we'll just handle explicit collapse via button or header click.
-  // Implementing a global click listener inside a component is risky for event bubbling.
-  // The SidePanel parent can handle clicks on the main content to collapse this if needed.
-
   return (
     <div
       className={`
