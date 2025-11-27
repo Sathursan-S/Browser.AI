@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import time
 import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar
@@ -22,6 +23,7 @@ from lmnr import observe
 from openai import RateLimitError
 from pydantic import BaseModel, ValidationError
 
+from browser_ai.agent.media import create_history_gif
 from browser_ai.agent.message_manager.service import MessageManager
 from browser_ai.agent.prompts import AgentMessagePrompt, PlannerPrompt, SystemPrompt
 from browser_ai.agent.views import (
@@ -41,8 +43,7 @@ from browser_ai.dom.history_tree_processor.service import (
     DOMHistoryElement,
     HistoryTreeProcessor,
 )
-from browser_ai.utils import time_execution_async
-from browser_ai.agent.media import create_history_gif
+from browser_ai.utils import LatencyAnalyzer, time_execution_async
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -97,6 +98,7 @@ class Agent:
         page_extraction_llm: Optional[BaseChatModel] = None,
         planner_llm: Optional[BaseChatModel] = None,
         planner_interval: int = 1,  # Run planner every N steps
+        use_mock_llm: bool = False,  # For testing latency without API calls
     ):
         self.agent_id = str(uuid.uuid4())  # unique identifier for the agent
         self.sensitive_data = sensitive_data
@@ -124,6 +126,7 @@ class Agent:
         self.last_plan = None
         # Controller setup
         self.controller = controller
+        self.controller.latency_analyzer = LatencyAnalyzer()
         self.max_actions_per_step = max_actions_per_step
 
         # Browser setup
@@ -198,7 +201,7 @@ class Agent:
         self._paused = False
         self._stopped = False
 
-        self.action_descriptions = self.controller.registry.get_prompt_description()
+        self.use_mock_llm = use_mock_llm
 
     # Public status helpers
     def is_stopped(self) -> bool:
@@ -291,12 +294,22 @@ class Agent:
     async def step(self, step_info: Optional[AgentStepInfo] = None) -> None:
         """Execute one step of the task"""
         logger.info(f"📍 Step {self.n_steps}")
+        step_start_time = time.time()
         state = None
         model_output = None
         result: list[ActionResult] = []
 
         try:
+            start_get_state = time.time()
             state = await self.browser_context.get_state()
+            end_get_state = time.time()
+            self.controller.latency_analyzer.record(
+                "get_state",
+                start_get_state,
+                end_get_state,
+                self.n_steps,
+                {"task": self.task},
+            )
 
             self._check_if_stopped_or_paused()
             self.message_manager.add_state_message(
@@ -305,7 +318,16 @@ class Agent:
 
             # Run planner at specified intervals if planner is configured
             if self.planner_llm and self.n_steps % self.planning_interval == 0:
+                start_planner = time.time()
                 plan = await self._run_planner()
+                end_planner = time.time()
+                self.controller.latency_analyzer.record(
+                    "run_planner",
+                    start_planner,
+                    end_planner,
+                    self.n_steps,
+                    {"task": self.task},
+                )
                 # add plan before last state message
                 self.message_manager.add_plan(plan, position=-1)
 
@@ -314,7 +336,16 @@ class Agent:
             self._check_if_stopped_or_paused()
 
             try:
+                start_get_next_action = time.time()
                 model_output = await self.get_next_action(input_messages)
+                end_get_next_action = time.time()
+                self.controller.latency_analyzer.record(
+                    "get_next_action",
+                    start_get_next_action,
+                    end_get_next_action,
+                    self.n_steps,
+                    {"task": self.task},
+                )
 
                 if self.register_new_step_callback:
                     self.register_new_step_callback(state, model_output, self.n_steps)
@@ -330,6 +361,8 @@ class Agent:
                 self.message_manager._remove_last_state_message()
                 raise e
 
+            self.controller.step_number = self.n_steps
+            start_multi_act = time.time()
             result: list[ActionResult] = await self.controller.multi_act(
                 model_output.action,
                 self.browser_context,
@@ -338,7 +371,21 @@ class Agent:
                 check_break_if_paused=lambda: self._check_if_stopped_or_paused(),
                 available_file_paths=self.available_file_paths,
             )
+            end_multi_act = time.time()
+            self.controller.latency_analyzer.record(
+                "multi_act",
+                start_multi_act,
+                end_multi_act,
+                self.n_steps,
+                {
+                    "task": self.task,
+                    "action_count": len(model_output.action) if model_output else 0,
+                },
+            )
             self._last_result = result
+            self.controller.latency_analyzer.record(
+                "step", step_start_time, time.time(), self.n_steps, {"task": self.task}
+            )
 
             # Check if any action requires user intervention
             if any(
@@ -506,10 +553,32 @@ class Agent:
     @time_execution_async("--get_next_action")
     async def get_next_action(self, input_messages: list[BaseMessage]) -> AgentOutput:
         """Get next action from LLM based on current state"""
+        if self.use_mock_llm:
+            # Mock response for testing latency without API calls
+            from browser_ai.agent.views import AgentBrain
+
+            mock_brain = AgentBrain(
+                page_summary="Mock page summary",
+                evaluation_previous_goal="Success",
+                memory="Mock memory",
+                next_goal="Complete task",
+            )
+            # Create a simple action, e.g., extract_content
+            mock_action = self.ActionModel(
+                **{"extract_content": {"goal": "Extract page content"}}
+            )
+            mock_output = self.AgentOutput(
+                current_state=mock_brain, action=[mock_action]
+            )
+            self._log_response(mock_output)
+            self.n_steps += 1
+            return mock_output
+
         converted_input_messages = self._convert_input_messages(
             input_messages, self.model_name
         )
 
+        start_llm_call = time.time()
         if (
             self.model_name == "deepseek-reasoner"
             or self.model_name.startswith("deepseek-r1")
@@ -538,6 +607,15 @@ class Agent:
             )
             response: dict[str, Any] = await structured_llm.ainvoke(input_messages)  # type: ignore
             parsed: AgentOutput | None = response["parsed"]
+
+        end_llm_call = time.time()
+        self.controller.latency_analyzer.record(
+            "llm_call",
+            start_llm_call,
+            end_llm_call,
+            self.n_steps,
+            {"model": self.model_name, "task": self.task},
+        )
 
         if parsed is None:
             raise ValueError("Could not parse response.")
@@ -625,6 +703,7 @@ class Agent:
 
             # Execute initial actions if provided
             if self.initial_actions:
+                start_initial_actions = time.time()
                 result = await self.controller.multi_act(
                     self.initial_actions,
                     self.browser_context,
@@ -632,6 +711,14 @@ class Agent:
                     page_extraction_llm=self.page_extraction_llm,
                     check_break_if_paused=lambda: self._check_if_stopped_or_paused(),
                     available_file_paths=self.available_file_paths,
+                )
+                end_initial_actions = time.time()
+                self.controller.latency_analyzer.record(
+                    "initial_actions",
+                    start_initial_actions,
+                    end_initial_actions,
+                    0,
+                    {"task": self.task, "action_count": len(self.initial_actions)},
                 )
                 self._last_result = result
 
@@ -675,7 +762,7 @@ class Agent:
                 # 3. Generate a unique filename
                 # Note: I'm replacing "uuid" with a call to the uuid module for a real example
                 filename = f"agent_history-{self.task}-{uuid.uuid4()}.gif"
-                
+
                 # 4. Combine the directory and filename to create the full path
                 output_path = os.path.join(output_dir, filename)
 
@@ -684,10 +771,11 @@ class Agent:
                     output_path = self.generate_gif
 
                 create_history_gif(
-                    task=self.task,
-                    history=self.history,
-                    output_path=output_path
+                    task=self.task, history=self.history, output_path=output_path
                 )
+
+            # Write latency analysis to CSV
+            self.controller.latency_analyzer.write_to_csv("output/latency_analysis.csv")
 
     def _too_many_failures(self) -> bool:
         """Check if we should stop due to too many failures"""
@@ -710,6 +798,10 @@ class Agent:
 
     async def _validate_output(self) -> bool:
         """Validate the output of the last action is what the user wanted"""
+        if self.use_mock_llm:
+            # Mock validation for testing
+            return True
+
         system_msg = (
             f"You are a validator of an agent who interacts with a browser. "
             f"Validate if the output of last action is what the user wanted and if the task is completed. "
@@ -746,7 +838,16 @@ class Agent:
             reason: str
 
         validator = self.llm.with_structured_output(ValidationResult, include_raw=True)
+        start_validation_llm = time.time()
         response: dict[str, Any] = await validator.ainvoke(msg)  # type: ignore
+        end_validation_llm = time.time()
+        self.controller.latency_analyzer.record(
+            "validation_llm_call",
+            start_validation_llm,
+            end_validation_llm,
+            self.n_steps,
+            {"model": self.model_name, "task": self.task},
+        )
         parsed: ValidationResult = response["parsed"]
         is_valid = parsed.is_valid
         if not is_valid:
@@ -1048,6 +1149,10 @@ class Agent:
         if not self.planner_llm:
             return None
 
+        if self.use_mock_llm:
+            # Mock plan for testing
+            return "Mock planning analysis"
+
         # Create planner message history using full message history
         planner_messages = [
             PlannerPrompt(self.action_descriptions).get_system_message(),
@@ -1075,7 +1180,16 @@ class Agent:
             planner_messages, self.planner_model_name
         )
         # Get planner output
+        start_planner_llm = time.time()
         response = await self.planner_llm.ainvoke(planner_messages)
+        end_planner_llm = time.time()
+        self.controller.latency_analyzer.record(
+            "planner_llm_call",
+            start_planner_llm,
+            end_planner_llm,
+            self.n_steps,
+            {"model": self.planner_model_name, "task": self.task},
+        )
         plan = response.content
         # if deepseek-reasoner, remove think tags
         if self.planner_model_name == "deepseek-reasoner":

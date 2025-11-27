@@ -29,8 +29,9 @@ from browser_ai.controller.views import (
     SwitchTabAction,
 )
 from browser_ai.location_service import LocationDetector
-from browser_ai.utils import time_execution_async, time_execution_sync
+from browser_ai.utils import time_execution_async, time_execution_sync, LatencyAnalyzer
 import browser_ai.actions as actions
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +41,12 @@ class Controller:
         self,
         exclude_actions: list[str] = [],
         output_model: Optional[Type[BaseModel]] = None,
+        latency_analyzer: Optional[LatencyAnalyzer] = None,
     ):
         self.exclude_actions = exclude_actions
         self.output_model = output_model
+        self.latency_analyzer = latency_analyzer
+        self.step_number = None
         self.registry = Registry(exclude_actions)
         self.location_detector = LocationDetector()  # Initialize location detector
         self._register_default_actions()
@@ -88,7 +92,9 @@ class Controller:
             browser: BrowserContext,
             page_extraction_llm: BaseChatModel,
         ):
-            return await actions.search_google_with_ai(params, browser, page_extraction_llm)
+            return await actions.search_google_with_ai(
+                params, browser, page_extraction_llm
+            )
 
         @self.registry.action(
             "Find the best website for a specific purpose (shopping, downloading, services, etc.). Use this FIRST before attempting to shop, download, or access specific content. Returns suggested websites to try.",
@@ -97,7 +103,9 @@ class Controller:
         async def find_best_website(
             params: FindBestWebsiteAction, browser: BrowserContext
         ):
-            return await actions.find_best_website(params, browser, self.location_detector)
+            return await actions.find_best_website(
+                params, browser, self.location_detector
+            )
 
         @self.registry.action(
             "Detect user location (country, currency, timezone) to provide personalized shopping experience. Use this BEFORE shopping tasks to get region-specific websites and currency information.",
@@ -106,7 +114,9 @@ class Controller:
         async def detect_location(
             params: DetectLocationAction, browser: BrowserContext
         ):
-            return await actions.detect_location(params, browser, self.location_detector)
+            return await actions.detect_location(
+                params, browser, self.location_detector
+            )
 
         @self.registry.action(
             "Search for products on e-commerce websites. You can specify any e-commerce site (amazon.com, ebay.com, daraz.lk, ikman.lk, glomark.lk, etc.) or leave blank to use location-based default. IMPORTANT: Use detect_location and find_best_website first for shopping tasks.",
@@ -115,7 +125,9 @@ class Controller:
         async def search_ecommerce(
             params: SearchEcommerceAction, browser: BrowserContext
         ):
-            return await actions.search_ecommerce(params, browser, self.location_detector)
+            return await actions.search_ecommerce(
+                params, browser, self.location_detector
+            )
 
         @self.registry.action(
             "Navigate to URL in the current tab", param_model=GoToUrlAction
@@ -183,7 +195,9 @@ class Controller:
         @self.registry.action(
             description="Check if the current URL contains specific text (case-insensitive). Returns true/false. Useful for verifying navigation, email sent (check for 'sent' or 'sentitems'), form submission, etc.",
         )
-        async def check_url_contains(text: str, browser: BrowserContext) -> ActionResult:
+        async def check_url_contains(
+            text: str, browser: BrowserContext
+        ) -> ActionResult:
             return await actions.check_url_contains(text, browser)
 
         @self.registry.action(
@@ -192,14 +206,18 @@ class Controller:
         async def wait_for_url_change(
             contains_text: str = "",
             timeout_seconds: int = 10,
-            browser: BrowserContext = None
+            browser: BrowserContext = None,
         ) -> ActionResult:
-            return await actions.wait_for_url_change(contains_text, timeout_seconds, browser)
+            return await actions.wait_for_url_change(
+                contains_text, timeout_seconds, browser
+            )
 
         @self.registry.action(
             description="Check if specific text exists on the current page. Returns true/false. Useful for verifying confirmation messages like 'Email sent', 'Message sent', 'Success', etc.",
         )
-        async def check_page_contains_text(text: str, browser: BrowserContext) -> ActionResult:
+        async def check_page_contains_text(
+            text: str, browser: BrowserContext
+        ) -> ActionResult:
             return await actions.check_page_contains_text(text, browser)
 
         @self.registry.action(
@@ -343,6 +361,7 @@ class Controller:
         try:
             for action_name, params in action.model_dump(exclude_unset=True).items():
                 if params is not None:
+                    start_time = time.time()
                     with Laminar.start_as_current_span(
                         name=action_name,
                         input={
@@ -361,6 +380,12 @@ class Controller:
                         )
 
                         Laminar.set_span_output(result)
+
+                    end_time = time.time()
+                    if self.latency_analyzer:
+                        self.latency_analyzer.record(
+                            action_name, start_time, end_time, self.step_number
+                        )
 
                     if isinstance(result, str):
                         return ActionResult(extracted_content=result)
