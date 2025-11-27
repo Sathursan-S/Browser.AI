@@ -36,30 +36,54 @@ export const SidePanel = () => {
   })
   const [settings, setSettings] = useState<ExtensionSettings>(DEFAULT_SETTINGS)
   const [cdpEndpoint, setCdpEndpoint] = useState('')
+  const [taskResult, setTaskResult] = useState<string | null>(null)
   const logsEndRef = useRef<HTMLDivElement>(null)
   const socketRef = useRef<Socket | null>(null)
 
   // Load settings and persisted task status on mount
   useEffect(() => {
-    loadSettings().then(setSettings)
-    onSettingsChanged(setSettings)
+    let isMounted = true
+
+    loadSettings().then((loadedSettings) => {
+      if (isMounted) {
+        setSettings(loadedSettings)
+      }
+    })
+
+    const handleSettingsChange = (newSettings: ExtensionSettings) => {
+      if (isMounted) {
+        setSettings(newSettings)
+      }
+    }
+    const unsubscribeSettings = onSettingsChanged(handleSettingsChange)
 
     // Load persisted task status from chrome storage using state manager
     loadTaskStatus().then((status) => {
-      if (status) {
+      if (isMounted && status) {
         setTaskStatus(status)
       }
     })
 
     // Load persisted CDP endpoint
     loadCdpEndpoint().then((endpoint) => {
-      if (endpoint) {
+      if (isMounted && endpoint) {
         setCdpEndpoint(endpoint)
       }
     })
 
     // Listen for task status changes from other extension pages
-    onTaskStatusChanged(setTaskStatus)
+    const handleTaskStatusChange = (newStatus: ProtocolTaskStatus) => {
+      if (isMounted) {
+        setTaskStatus(newStatus)
+      }
+    }
+    const unsubscribeTaskStatus = onTaskStatusChanged(handleTaskStatusChange)
+
+    return () => {
+      isMounted = false
+      unsubscribeSettings()
+      unsubscribeTaskStatus()
+    }
   }, [])
 
   // Persist task status to chrome storage whenever it changes
@@ -227,6 +251,23 @@ export const SidePanel = () => {
       },
     )
 
+    // Listen for task result
+    newSocket.on(
+      'task_result',
+      (result: { task: string; success: boolean; history: string | null }) => {
+        console.log('Task result received:', result)
+        if (result.task !== null) {
+          addSystemLog(
+            `Task "${result.task}" ${result.success ? 'completed successfully' : 'failed'}`,
+            result.success ? 'INFO' : 'ERROR',
+          )
+        }
+        if (result.history) {
+          addSystemLog(`Task history: ${result.history}`, 'DEBUG')
+        }
+      },
+    )
+
     newSocket.on('error', (data: { message: string }) => {
       console.error('Server error:', data.message)
       addSystemLog(data.message, 'ERROR')
@@ -240,7 +281,10 @@ export const SidePanel = () => {
     }
   }, [settings.serverUrl, settings.autoReconnect, addLog, showNotificationPopup, addSystemLog])
 
-  // Get CDP endpoint from background script
+  // ❌ NOT NEEDED FOR LOCAL PLAYWRIGHT SETUP
+  // This function was for extension-proxy mode where CDP endpoint is fetched dynamically
+  // For local setup, we use direct CDP at http://localhost:9222
+  /*
   const getCdpEndpoint = async () => {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
@@ -266,6 +310,16 @@ export const SidePanel = () => {
       return null
     }
   }
+  */
+
+  // ✅ SIMPLIFIED FOR LOCAL PLAYWRIGHT SETUP
+  // Just use the known CDP endpoint for local development
+  const getCdpEndpoint = async () => {
+    const endpoint = 'http://localhost:9222'
+    setCdpEndpoint(endpoint)
+    addSystemLog('Using local CDP endpoint: http://localhost:9222', 'INFO')
+    return endpoint
+  }
 
   const handleStartTask = async (task: string) => {
     if (!task.trim()) {
@@ -286,6 +340,8 @@ export const SidePanel = () => {
         return
       }
     }
+
+    setTaskResult(null) // Clear previous result
 
     const payload: StartTaskPayload = {
       task: task,
@@ -345,6 +401,31 @@ export const SidePanel = () => {
     [taskStatus.is_running, taskStatus.current_task, taskStatus.is_paused],
   )
 
+  // Listen for task result
+  useEffect(() => {
+    if (!socket) return
+
+    const handleTaskResult = (result: {
+      task: string
+      success: boolean
+      history: string | null
+    }) => {
+      if (result.task === null) return
+      console.log('Task result received:', result)
+      if (result.history) {
+        addSystemLog(`Task history: ${result.history}`, 'DEBUG')
+      }
+      const resultMessage = `Task "${result.task}" ${result.success ? 'completed successfully' : 'failed'}`
+      setTaskResult(resultMessage)
+    }
+
+    socket.on('task_result', handleTaskResult)
+
+    return () => {
+      socket.off('task_result', handleTaskResult)
+    }
+  }, [socket])
+
   return (
     <div className="sidepanel-container">
       {/* Header */}
@@ -396,6 +477,14 @@ export const SidePanel = () => {
 
         {/* Execution Logs */}
         <ExecutionLog logs={logs} onClear={clearLogs} devMode={settings.devMode} />
+
+        {/* Task Result */}
+        {taskResult && (
+          <div className="task-result">
+            <h3>Task Result</h3>
+            <p>{taskResult}</p>
+          </div>
+        )}
       </div>
 
       {/* Chat Input at Bottom */}
