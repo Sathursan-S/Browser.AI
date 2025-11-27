@@ -6,6 +6,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from lmnr import Laminar, observe
 from pydantic import BaseModel
 
+import browser_ai.actions as actions
 from browser_ai.agent.views import ActionModel, ActionResult
 from browser_ai.browser.context import BrowserContext
 from browser_ai.controller.registry.service import Registry

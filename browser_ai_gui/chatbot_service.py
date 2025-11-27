@@ -7,8 +7,9 @@ before starting browser automation tasks.
 
 import logging
 from typing import Dict, List, Optional, Tuple
-from langchain_google_genai import ChatGoogleGenerativeAI
+
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
