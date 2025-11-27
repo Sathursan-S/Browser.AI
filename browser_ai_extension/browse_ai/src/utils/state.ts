@@ -13,6 +13,8 @@ const STATE_KEYS = {
   LAST_TASK: 'lastTask',
   CONVERSATION_MESSAGES: 'conversationMessages',
   CONVERSATION_INTENT: 'conversationIntent',
+  TASK_HISTORY: 'taskHistory',
+  CHAT_HISTORY: 'chatHistory',
 } as const
 
 /**
@@ -145,10 +147,7 @@ export const onTaskStatusChanged = (callback: (status: TaskStatus) => void): (()
     console.log('[State] Storage change detected:', changes, areaName)
     if (areaName === 'local' && changes[STATE_KEYS.TASK_STATUS]) {
       const newStatus = changes[STATE_KEYS.TASK_STATUS].newValue
-      if (
-        newStatus &&
-        newStatus !== changes[STATE_KEYS.TASK_STATUS].oldValue
-      ) {
+      if (newStatus && newStatus !== changes[STATE_KEYS.TASK_STATUS].oldValue) {
         console.log('[State] Task status changed:', newStatus)
         callback(newStatus)
       }
@@ -188,7 +187,10 @@ export const loadConversationMessages = async (): Promise<ConversationMessage[]>
         console.error('[State] Failed to load conversation messages:', chrome.runtime.lastError)
         resolve([])
       } else if (result[STATE_KEYS.CONVERSATION_MESSAGES]) {
-        console.log('[State] Loaded conversation messages:', result[STATE_KEYS.CONVERSATION_MESSAGES])
+        console.log(
+          '[State] Loaded conversation messages:',
+          result[STATE_KEYS.CONVERSATION_MESSAGES],
+        )
         resolve(result[STATE_KEYS.CONVERSATION_MESSAGES])
       } else {
         resolve([])
@@ -265,7 +267,98 @@ export const clearConversationState = async (): Promise<void> => {
           console.log('[State] Cleared conversation state')
           resolve()
         }
-      }
+      },
     )
+  })
+}
+
+/**
+ * Task history entry type
+ */
+export interface TaskHistoryEntry {
+  task: string
+  result: string
+  logs: any[] // LogEvent[]
+  timestamp: string
+  mode: 'agent' | 'conversation'
+}
+
+/**
+ * Chat history entry type
+ */
+export interface ChatHistoryEntry {
+  messages: ConversationMessage[]
+  timestamp: string
+}
+
+/**
+ * Load task history from persistent storage
+ */
+export const loadTaskHistory = async (): Promise<TaskHistoryEntry[]> => {
+  return new Promise((resolve) => {
+    chrome.storage.local.get([STATE_KEYS.TASK_HISTORY], (result) => {
+      if (chrome.runtime.lastError) {
+        console.error('[State] Failed to load task history:', chrome.runtime.lastError)
+        resolve([])
+      } else if (result[STATE_KEYS.TASK_HISTORY]) {
+        console.log('[State] Loaded task history:', result[STATE_KEYS.TASK_HISTORY])
+        resolve(result[STATE_KEYS.TASK_HISTORY])
+      } else {
+        resolve([])
+      }
+    })
+  })
+}
+
+/**
+ * Save task history to persistent storage
+ */
+export const saveTaskHistory = async (history: TaskHistoryEntry[]): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.set({ [STATE_KEYS.TASK_HISTORY]: history }, () => {
+      if (chrome.runtime.lastError) {
+        console.error('[State] Failed to save task history:', chrome.runtime.lastError)
+        reject(chrome.runtime.lastError)
+      } else {
+        console.log('[State] Saved task history:', history.length, 'entries')
+        resolve()
+      }
+    })
+  })
+}
+
+/**
+ * Load chat history from persistent storage
+ */
+export const loadChatHistory = async (): Promise<ChatHistoryEntry[]> => {
+  return new Promise((resolve) => {
+    chrome.storage.local.get([STATE_KEYS.CHAT_HISTORY], (result) => {
+      if (chrome.runtime.lastError) {
+        console.error('[State] Failed to load chat history:', chrome.runtime.lastError)
+        resolve([])
+      } else if (result[STATE_KEYS.CHAT_HISTORY]) {
+        console.log('[State] Loaded chat history:', result[STATE_KEYS.CHAT_HISTORY])
+        resolve(result[STATE_KEYS.CHAT_HISTORY])
+      } else {
+        resolve([])
+      }
+    })
+  })
+}
+
+/**
+ * Save chat history to persistent storage
+ */
+export const saveChatHistory = async (history: ChatHistoryEntry[]): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.set({ [STATE_KEYS.CHAT_HISTORY]: history }, () => {
+      if (chrome.runtime.lastError) {
+        console.error('[State] Failed to save chat history:', chrome.runtime.lastError)
+        reject(chrome.runtime.lastError)
+      } else {
+        console.log('[State] Saved chat history:', history.length, 'entries')
+        resolve()
+      }
+    })
   })
 }

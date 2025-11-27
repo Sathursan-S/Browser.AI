@@ -27,6 +27,16 @@ import {
   loadCdpEndpoint,
   saveCdpEndpoint,
   onTaskStatusChanged,
+  loadConversationMessages,
+  saveConversationMessages,
+  loadConversationIntent,
+  saveConversationIntent,
+  loadTaskHistory,
+  saveTaskHistory,
+  loadChatHistory,
+  saveChatHistory,
+  TaskHistoryEntry,
+  ChatHistoryEntry,
 } from '../utils/state'
 
 export const SidePanel = () => {
@@ -46,8 +56,12 @@ export const SidePanel = () => {
   })
 
   // UI State
-  const [concentrationMode, setConcentrationMode] = useState(false)
   const [taskResult, setTaskResult] = useState<string>('')
+  const [taskHeaderDismissed, setTaskHeaderDismissed] = useState(true)
+
+  // History State
+  const [taskHistory, setTaskHistory] = useState<TaskHistoryEntry[]>([])
+  const [chatHistory, setChatHistory] = useState<ChatHistoryEntry[]>([])
 
   const [settings, setSettings] = useState<ExtensionSettings>(DEFAULT_SETTINGS)
   const [cdpEndpoint, setCdpEndpoint] = useState('')
@@ -55,20 +69,6 @@ export const SidePanel = () => {
 
   // Scroll ref
   const scrollRef = useRef<HTMLDivElement>(null)
-
-  // Voice State Hook (lifted from ChatInput roughly, but we need to know global listening state)
-  // Actually, ChatInput manages listening state internally.
-  // We need to know if we are in "Voice Mode" to trigger Concentration Mode.
-  // We can infer this: If ChatInput triggers a start via voice, or if we toggle it.
-  // For now, let's add a manual toggle or infer from interaction.
-  // Requirement: "Implement concentration mode with voice... visualize the voice".
-
-  // Let's track if voice is active via an event listener or shared state service if possible,
-  // but since VoiceRecognition is a singleton service, we can add a listener to it or just pass callbacks.
-  // Refactoring ChatInput to expose `isListening` or lifting the state up would be cleaner.
-  // For this plan, let's lift `isListening` state to SidePanel so we can drive the UI.
-
-  const [isListening, setIsListening] = useState(false)
 
   // Mode State for switching between Agent and Conversation modes
   const [mode, setMode] = useState<'agent' | 'conversation'>('agent')
@@ -85,10 +85,10 @@ export const SidePanel = () => {
 
   // Auto-scroll logs
   useEffect(() => {
-    if (scrollRef.current && !concentrationMode) {
+    if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  }, [logs, concentrationMode])
+  }, [logs])
 
   // Initial Load
   useEffect(() => {
@@ -111,6 +111,14 @@ export const SidePanel = () => {
       if (isMounted && endpoint) setCdpEndpoint(endpoint)
     })
 
+    loadTaskHistory().then((history) => {
+      if (isMounted && history) setTaskHistory(history)
+    })
+
+    loadChatHistory().then((history) => {
+      if (isMounted && history) setChatHistory(history)
+    })
+
     const handleTaskStatusChange = (newStatus: ProtocolTaskStatus) => {
       if (isMounted) setTaskStatus(newStatus)
     }
@@ -130,6 +138,12 @@ export const SidePanel = () => {
   useEffect(() => {
     if (cdpEndpoint) saveCdpEndpoint(cdpEndpoint)
   }, [cdpEndpoint])
+  useEffect(() => {
+    saveTaskHistory(taskHistory)
+  }, [taskHistory])
+  useEffect(() => {
+    saveChatHistory(chatHistory)
+  }, [chatHistory])
 
   // Update Page Overlay based on status
   const updateOverlay = useCallback(async (status: string, isError: boolean = false) => {
@@ -224,8 +238,35 @@ export const SidePanel = () => {
     })
 
     newSocket.on('task_started', (data: { message: string }) => {
+      // Save current task to history before starting new one
+      if (taskStatus.current_task || taskResult || logs.length > 0) {
+        setTaskHistory((prev) => [
+          ...prev,
+          {
+            task: taskStatus.current_task || 'Unknown Task',
+            result: taskResult,
+            logs: [...logs],
+            timestamp: new Date().toISOString(),
+            mode: mode,
+          },
+        ])
+      }
+
+      // Save current conversation if in conversation mode
+      if (mode === 'conversation' && messages.length > 1) {
+        // More than just greeting
+        setChatHistory((prev) => [
+          ...prev,
+          {
+            messages: [...messages],
+            timestamp: new Date().toISOString(),
+          },
+        ])
+      }
+
       setLogs([])
       setTaskResult('')
+      setTaskHeaderDismissed(false)
       updateOverlay('Starting Task...', false)
     })
 
@@ -315,9 +356,7 @@ export const SidePanel = () => {
     setLogs([])
     setTaskResult('')
 
-    // If we started via voice (implied if we are in concentration mode or isListening was true recently),
-    // keep concentration mode on.
-    // Otherwise, default to standard view unless toggled.
+    // Voice input is handled within conversation mode now.
   }
 
   const handleStartClarifiedTask = async (task: string, cdpEndpoint: string) => {
@@ -342,46 +381,6 @@ export const SidePanel = () => {
 
   const handlePauseTask = () => socket?.emit('pause_task')
   const handleResumeTask = () => socket?.emit('resume_task')
-
-  // Auto-switch to Concentration Mode when listening starts
-  useEffect(() => {
-    if (isListening) {
-      setConcentrationMode(true)
-    }
-  }, [isListening])
-
-  // Space bar to toggle listening
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.code === 'Space' &&
-        !(
-          document.activeElement?.tagName === 'INPUT' ||
-          document.activeElement?.tagName === 'TEXTAREA'
-        )
-      ) {
-        e.preventDefault()
-        setIsListening(true)
-      }
-    }
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (
-        e.code === 'Space' &&
-        !(
-          document.activeElement?.tagName === 'INPUT' ||
-          document.activeElement?.tagName === 'TEXTAREA'
-        )
-      ) {
-        setIsListening(false)
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    document.addEventListener('keyup', handleKeyUp)
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-      document.removeEventListener('keyup', handleKeyUp)
-    }
-  }, [])
 
   return (
     <Layout>
@@ -442,62 +441,16 @@ export const SidePanel = () => {
                 strokeWidth="2"
               >
                 {mode === 'conversation' ? (
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  <>
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    <line x1="9" y1="9" x2="15" y2="9" />
+                    <line x1="9" y1="12" x2="12" y2="12" />
+                  </>
                 ) : (
                   <circle cx="12" cy="12" r="3" />
                 )}
               </svg>
             </button>
-
-            {/* Concentration Mode Toggle */}
-            <button
-              onClick={() => setConcentrationMode(!concentrationMode)}
-              className={`p-2 rounded-lg transition-colors ${
-                concentrationMode
-                  ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
-                  : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
-              }`}
-              title="Toggle Focus Mode"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-            </button>
-
-            {/* Voice Listening Toggle - Only in Concentration Mode */}
-            {concentrationMode && (
-              <button
-                onClick={() => setIsListening(!isListening)}
-                className={`p-2 rounded-lg transition-colors ${
-                  isListening
-                    ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
-                    : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
-                }`}
-                title="Toggle Voice Listening"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                  <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
-                  <line x1="12" y1="19" x2="12" y2="23" />
-                  <line x1="8" y1="23" x2="16" y2="23" />
-                </svg>
-              </button>
-            )}
 
             <button
               onClick={toggleTheme}
@@ -552,10 +505,18 @@ export const SidePanel = () => {
       <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700 relative flex flex-col"
+        onClick={() => {
+          setTaskHeaderDismissed(!taskStatus.is_running)
+          if (mode === 'conversation') {
+            setMessages([])
+            setIntent(null)
+          }
+        }}
       >
         {/* Active Task Banner / Sticky Header */}
-        {(taskStatus.is_running || taskStatus.current_task) && (
+        {(taskStatus.is_running || taskStatus.current_task) && !taskHeaderDismissed && (
           <TaskStatusHeader
+            key={taskStatus.current_task || 'no-task'}
             task={taskStatus.current_task || 'Unknown Task'}
             status={
               taskStatus.is_paused
@@ -568,8 +529,13 @@ export const SidePanel = () => {
             }
             result={taskResult}
             onClose={() => {
+              setTaskHeaderDismissed(true)
               setTaskResult('')
-              // Optional: Clear task status here or just hide UI
+              // Clear conversation messages when dismissing in conversation mode
+              if (mode === 'conversation') {
+                setMessages([])
+                setIntent(null)
+              }
             }}
           />
         )}
@@ -587,33 +553,6 @@ export const SidePanel = () => {
             setIntent={setIntent}
             onSwitchToAgent={() => setMode('agent')}
           />
-        ) : concentrationMode ? (
-          /* Concentration Mode View */
-          <div className="flex-1 flex flex-col items-center justify-center p-6 min-h-[300px]">
-            <VoiceVisualizer isListening={isListening} isSpeaking={false} />
-
-            {/* Minimal controls for concentration mode */}
-            {taskStatus.is_running && (
-              <div className="mt-8">
-                <button
-                  onClick={handleStopTask}
-                  className="px-6 py-3 bg-red-500 hover:bg-red-600 text-white rounded-full font-medium shadow-lg shadow-red-500/30 transition-transform active:scale-95 flex items-center gap-2"
-                >
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                  </svg>
-                  Stop Task
-                </button>
-              </div>
-            )}
-          </div>
         ) : (
           /* Standard Agent View */
           <>
@@ -657,8 +596,8 @@ export const SidePanel = () => {
       </div>
 
       {/* Footer / Input */}
-      {/* Hide standard input in concentration mode or conversation mode */}
-      {mode === 'agent' && !concentrationMode && (
+      {/* Hide standard input in conversation mode */}
+      {mode === 'agent' && (
         <div className="flex-none p-4 bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800">
           <ChatInput
             onSendMessage={handleStartTask}
@@ -668,35 +607,8 @@ export const SidePanel = () => {
             isRunning={taskStatus.is_running}
             isPaused={taskStatus.is_paused}
             disabled={!connected}
-            // We need to pass a callback to update local isListening state
-            // However, ChatInput encapsulates it.
-            // To properly implement the requirement "visualize the voice",
-            // we should probably control listening state here or lift it.
-            // For now, I'll modify ChatInput to accept an onListeningChange prop.
-            // Since I can't easily modify ChatInput signature without checking it again...
-            // I checked it in previous turns. It has local state.
-            // Let's modify ChatInput.tsx next to support lifting state.
+            // Voice input is now handled within conversation mode components.
           />
-        </div>
-      )}
-
-      {/* Voice Controls for Concentration Mode (if we hide standard input) */}
-      {concentrationMode && (
-        <div className="flex-none p-6 bg-slate-950 border-t border-slate-800 flex justify-center pb-8">
-          <button
-            onClick={() => {
-              // Toggle listening
-              // Note: Ideally we call into ChatInput or VoiceService
-              // Since logic is in ChatInput, we really should refactor ChatInput to be a controlled component or similar.
-              // For this immediate task, let's assume the user toggles back to standard view to type,
-              // OR we put the ChatInput *inside* the concentration view but styled differently?
-              // Let's just provide a "Close Focus Mode" button.
-              setConcentrationMode(false)
-            }}
-            className="text-slate-400 hover:text-white text-sm font-medium"
-          >
-            Exit Focus Mode
-          </button>
         </div>
       )}
     </Layout>

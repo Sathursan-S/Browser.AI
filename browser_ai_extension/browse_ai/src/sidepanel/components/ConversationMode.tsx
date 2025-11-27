@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import './ConversationMode.css'
 import { textToSpeech } from '../../services/TextToSpeech'
 import { voiceRecognition } from '../../services/VoiceRecognition'
+import { VoiceVisualizer } from './Visuals/VoiceVisualizer'
 import {
   voiceConversation,
   type ConversationState,
@@ -50,6 +51,13 @@ export const ConversationMode = ({
   const [isListening, setIsListening] = useState(false)
   const [interimTranscript, setInterimTranscript] = useState('')
   const [voiceError, setVoiceError] = useState<string | null>(null)
+
+  // Audio visualization state
+  const [audioLevel, setAudioLevel] = useState(0)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
+  const animationFrameRef = useRef<number>()
 
   // New state for live voice mode
   const [isLiveVoiceMode, setIsLiveVoiceMode] = useState(false)
@@ -145,60 +153,18 @@ export const ConversationMode = ({
     }
   }, [])
 
-  // Listen for chatbot responses
+  // Monitor messages to reset processing state
   useEffect(() => {
-    if (!socket) return
-
-    const handleChatResponse = (data: { role: string; content: string; intent?: Intent }) => {
-      setIsProcessing(false)
-
-      const message: Message = {
-        role: data.role as 'user' | 'assistant',
-        content: data.content,
-        timestamp: new Date().toISOString(),
-      }
-
-      setMessages([...messages, message])
-
-      if (data.intent && data.intent.is_ready) {
-        setIntent(data.intent)
+    if (messages.length > 0) {
+      const lastMessage = messages[messages.length - 1]
+      if (lastMessage.role === 'assistant') {
+        setIsProcessing(false)
       }
     }
+  }, [messages])
 
-    const handleConversationReset = (data: { role: string; content: string }) => {
-      setMessages([
-        {
-          role: data.role as 'assistant',
-          content: data.content,
-          timestamp: new Date().toISOString(),
-        },
-      ])
-      setIntent(null)
-    }
-
-    const handleAgentNeedsHelp = (data: {
-      reason: string
-      summary: string
-      attempted_actions: string[]
-      duration: number
-      suggestion: string
-    }) => {
-      // Add help request as assistant message
-      const helpMessage: Message = {
-        role: 'assistant',
-        content: data.summary,
-        timestamp: new Date().toISOString(),
-      }
-
-      setMessages([...messages, helpMessage])
-      setIsProcessing(false)
-    }
-
-    socket.on('chat_response', handleChatResponse)
-    socket.on('conversation_reset', handleConversationReset)
-    socket.on('agent_needs_help', handleAgentNeedsHelp)
-
-    // Initial greeting when connected
+  // Initial greeting when connected
+  useEffect(() => {
     if (connected && messages.length === 0) {
       setMessages([
         {
@@ -209,13 +175,7 @@ export const ConversationMode = ({
         },
       ])
     }
-
-    return () => {
-      socket.off('chat_response', handleChatResponse)
-      socket.off('conversation_reset', handleConversationReset)
-      socket.off('agent_needs_help', handleAgentNeedsHelp)
-    }
-  }, [socket, connected, messages, setMessages, setIntent])
+  }, [connected, messages, setMessages])
 
   const handleSendMessage = () => {
     if (!input.trim() || !connected || isProcessing) return
@@ -473,11 +433,105 @@ export const ConversationMode = ({
     )
   }
 
+  // Audio analysis for visualization
+  useEffect(() => {
+    if ((isListening || isLiveVoiceMode) && !audioContextRef.current) {
+      const initAudio = async () => {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+
+          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+          const analyser = audioContext.createAnalyser()
+          analyser.fftSize = 256
+          analyser.smoothingTimeConstant = 0.8
+
+          const source = audioContext.createMediaStreamSource(stream)
+          source.connect(analyser)
+
+          audioContextRef.current = audioContext
+          analyserRef.current = analyser
+          sourceRef.current = source
+
+          const updateLevel = () => {
+            if (!analyserRef.current) return
+
+            const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount)
+            analyserRef.current.getByteFrequencyData(dataArray)
+
+            // Calculate average level
+            let sum = 0
+            for (let i = 0; i < dataArray.length; i++) {
+              sum += dataArray[i]
+            }
+            const average = sum / dataArray.length
+
+            // Normalize to 0-1 with some boost
+            const normalized = Math.min(1, (average / 128) * 1.5)
+            setAudioLevel(normalized)
+
+            animationFrameRef.current = requestAnimationFrame(updateLevel)
+          }
+
+          updateLevel()
+        } catch (err) {
+          console.error('Error initializing audio visualization:', err)
+        }
+      }
+
+      initAudio()
+    } else if (!isListening && !isLiveVoiceMode && audioContextRef.current) {
+      // Cleanup
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+      }
+      if (sourceRef.current) {
+        sourceRef.current.disconnect()
+      }
+      if (analyserRef.current) {
+        analyserRef.current.disconnect()
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close()
+      }
+
+      audioContextRef.current = null
+      analyserRef.current = null
+      sourceRef.current = null
+      setAudioLevel(0)
+    }
+
+    return () => {
+      // Cleanup on unmount or dependency change
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+      }
+      // We don't close the context here immediately to avoid rapid open/close cycles
+      // but we should if the component unmounts.
+      // For now, we rely on the else block above for logic cleanup.
+    }
+  }, [isListening, isLiveVoiceMode])
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      if (audioContextRef.current) {
+        audioContextRef.current.close()
+      }
+    }
+  }, [])
+
   return (
     <div className="conversation-mode">
       {/* Live Voice Mode Status Bar */}
       {isLiveVoiceMode && (
         <div className={`live-voice-status ${conversationState}`}>
+          {/* <div className="visualizer-container" style={{ height: '180px', width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '10px' }}>
+             <VoiceVisualizer
+               isListening={conversationState === 'listening'}
+               isSpeaking={conversationState === 'speaking'}
+               audioLevel={audioLevel}
+             />
+          </div> */}
           <div className="status-indicator">
             {conversationState === 'listening' && (
               <>

@@ -3,9 +3,14 @@ import React, { useEffect, useRef } from 'react'
 interface VoiceVisualizerProps {
   isListening: boolean
   isSpeaking: boolean // For when the agent is "talking" (future proofing)
+  audioLevel?: number // 0.0 to 1.0 representing volume/intensity
 }
 
-export const VoiceVisualizer: React.FC<VoiceVisualizerProps> = ({ isListening, isSpeaking }) => {
+export const VoiceVisualizer: React.FC<VoiceVisualizerProps> = ({
+  isListening,
+  isSpeaking,
+  audioLevel = 0,
+}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animationRef = useRef<number>()
 
@@ -33,21 +38,45 @@ export const VoiceVisualizer: React.FC<VoiceVisualizerProps> = ({ isListening, i
       const centerY = canvas.height / 2
 
       // Base Orb
-      const baseRadius = 40
+      // If audioLevel is provided, use it to modulate radius
+      const dynamicScale = isListening && audioLevel > 0.01 ? 1 + audioLevel * 0.5 : 1
+      const baseRadius = 40 * dynamicScale
 
       // Animation logic
       // If listening: Pulse actively and show "receiving" waves
       // If idle: Slow breathe
 
       const pulseSpeed = isListening ? 0.1 : 0.02
-      const pulseAmount = isListening ? 10 : 5
+      // If audioLevel is active, use it for pulse amount, otherwise default
+      const pulseAmount = isListening ? (audioLevel > 0.01 ? audioLevel * 20 : 10) : 5
 
       time += pulseSpeed
 
       // Core Glow
-      const gradient = ctx.createRadialGradient(centerX, centerY, baseRadius * 0.5, centerX, centerY, baseRadius * 2)
-      gradient.addColorStop(0, isListening ? 'rgba(59, 130, 246, 0.8)' : 'rgba(99, 102, 241, 0.6)') // Blue/Indigo
-      gradient.addColorStop(0.5, isListening ? 'rgba(59, 130, 246, 0.2)' : 'rgba(99, 102, 241, 0.1)')
+      const gradient = ctx.createRadialGradient(
+        centerX,
+        centerY,
+        baseRadius * 0.5,
+        centerX,
+        centerY,
+        baseRadius * 2,
+      )
+
+      // Dynamic color based on audio level (shift from blue to purple/pink at high volume)
+      const coreColor = isListening
+        ? audioLevel > 0.6
+          ? `rgba(236, 72, 153, ${0.8 + audioLevel * 0.2})`
+          : `rgba(59, 130, 246, ${0.8 + audioLevel * 0.2})`
+        : 'rgba(99, 102, 241, 0.6)'
+
+      const outerColor = isListening
+        ? audioLevel > 0.6
+          ? `rgba(236, 72, 153, ${0.2 + audioLevel * 0.1})`
+          : `rgba(59, 130, 246, ${0.2 + audioLevel * 0.1})`
+        : 'rgba(99, 102, 241, 0.1)'
+
+      gradient.addColorStop(0, coreColor)
+      gradient.addColorStop(0.5, outerColor)
       gradient.addColorStop(1, 'transparent')
 
       ctx.fillStyle = gradient
@@ -64,7 +93,7 @@ export const VoiceVisualizer: React.FC<VoiceVisualizerProps> = ({ isListening, i
       ctx.beginPath()
       ctx.arc(0, 0, baseRadius + Math.sin(time) * 5, 0, Math.PI * 1.5)
       ctx.strokeStyle = isListening ? '#60A5FA' : '#818CF8'
-      ctx.lineWidth = 2
+      ctx.lineWidth = 2 + audioLevel * 2
       ctx.stroke()
 
       // Ring 2 (Counter rotate)
@@ -72,18 +101,21 @@ export const VoiceVisualizer: React.FC<VoiceVisualizerProps> = ({ isListening, i
       ctx.beginPath()
       ctx.arc(0, 0, baseRadius + 15 + Math.cos(time) * 5, 0, Math.PI * 1.2)
       ctx.strokeStyle = isListening ? '#3B82F6' : '#6366F1'
-      ctx.lineWidth = 2
+      ctx.lineWidth = 2 + audioLevel * 2
       ctx.stroke()
 
       // Ring 3 (Outer details)
       if (isListening) {
         ctx.rotate(time * 2)
-        for(let i=0; i<3; i++) {
-           ctx.rotate((Math.PI * 2) / 3)
-           ctx.beginPath()
-           ctx.arc(baseRadius + 30, 0, 2, 0, Math.PI * 2)
-           ctx.fillStyle = '#93C5FD'
-           ctx.fill()
+        // Add more particles based on audio level
+        const particleCount = 3 + Math.floor(audioLevel * 5)
+        for (let i = 0; i < particleCount; i++) {
+          ctx.rotate((Math.PI * 2) / particleCount)
+          ctx.beginPath()
+          // Push particles out based on audio level
+          ctx.arc(baseRadius + 30 + audioLevel * 20, 0, 2 + audioLevel * 2, 0, Math.PI * 2)
+          ctx.fillStyle = audioLevel > 0.6 ? '#F472B6' : '#93C5FD'
+          ctx.fill()
         }
       }
 
@@ -93,8 +125,8 @@ export const VoiceVisualizer: React.FC<VoiceVisualizerProps> = ({ isListening, i
       ctx.beginPath()
       ctx.arc(centerX, centerY, baseRadius + Math.sin(time * 2) * pulseAmount, 0, Math.PI * 2)
       ctx.fillStyle = isListening ? '#EFF6FF' : '#EEF2FF'
-      ctx.shadowColor = isListening ? '#3B82F6' : '#6366F1'
-      ctx.shadowBlur = 20
+      ctx.shadowColor = isListening ? (audioLevel > 0.6 ? '#EC4899' : '#3B82F6') : '#6366F1'
+      ctx.shadowBlur = 20 + audioLevel * 20
       ctx.fill()
       ctx.shadowBlur = 0
 
@@ -116,8 +148,10 @@ export const VoiceVisualizer: React.FC<VoiceVisualizerProps> = ({ isListening, i
 
       {/* Overlay Text */}
       <div className="absolute bottom-8 left-0 right-0 text-center z-20">
-        <p className={`text-lg font-medium transition-opacity duration-300 ${isListening ? 'opacity-100' : 'opacity-60'} text-white`}>
-          {isListening ? "Listening..." : "Tap mic to speak"}
+        <p
+          className={`text-lg font-medium transition-opacity duration-300 ${isListening ? 'opacity-100' : 'opacity-60'} text-white`}
+        >
+          {isListening ? 'Listening...' : 'Tap mic to speak'}
         </p>
       </div>
     </div>
