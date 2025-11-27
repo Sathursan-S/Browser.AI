@@ -125,15 +125,60 @@ Fill out the contact form on example.com with sample data
 
 ### Core Components
 
-1. **EventAdapter**: Captures Browser.AI logs without modifying the library
-2. **ConfigManager**: Handles LLM, browser, and GUI configuration
-3. **WebApp**: Flask-based web application with WebSocket support
-4. **BrowserAIGUI**: Tkinter desktop application
-5. **TaskManager**: Manages Browser.AI agent lifecycle
+1. **EventAdapter**: Captures Browser.AI logs without modifying the library (legacy)
+2. **Structured Event System**: New SOLID-compliant event emission system
+3. **ConfigManager**: Handles LLM, browser, and GUI configuration
+4. **WebApp**: Flask-based web application with WebSocket support
+5. **BrowserAIGUI**: Tkinter desktop application
+6. **TaskManager**: Manages Browser.AI agent lifecycle
 
 ### Event System
 
-The event system provides non-intrusive log streaming:
+#### New Structured Event System (Recommended)
+
+The new structured event system provides a decoupled, SOLID-compliant architecture for emitting and consuming events:
+
+```python
+from browser_ai_gui.events import (
+    EventEmitter, 
+    EventTransport, 
+    AgentStartEvent,
+    EventCategory
+)
+from browser_ai_gui.events.bridge import EventBridge
+
+# Create event system
+emitter = EventEmitter()
+transport = EventTransport(socketio=socketio, namespace="/extension")
+bridge = EventBridge(emitter, transport)
+
+# Subscribe to events
+def handle_event(event):
+    print(f"Event: {event.event_type}")
+
+emitter.subscribe(handle_event)
+
+# Emit structured events
+event = bridge.create_agent_start_event(
+    task_description="Book a ticket",
+    agent_id="agent-123",
+    configuration={"max_steps": 50}
+)
+bridge.emit_structured_event(event)
+```
+
+**Features:**
+- Type-safe event schemas
+- Event filtering by type and category
+- Multiple transport support (WebSocket, callbacks)
+- Session and task ID tracking
+- Progress and LLM output events
+
+**See:** [Structured Events Documentation](../docs/STRUCTURED_EVENTS.md)
+
+#### Legacy Event Adapter
+
+The original event adapter is still supported for backward compatibility:
 
 ```python
 from browser_ai_gui import EventAdapter, LogEvent
@@ -155,10 +200,21 @@ adapter.start()
 
 ```python
 from browser_ai_gui import ConfigManager, TaskManager, EventAdapter
+from browser_ai_gui.events import EventEmitter, EventTransport
+from browser_ai_gui.events.bridge import EventBridge
 
 # Setup components
 config = ConfigManager()
 adapter = EventAdapter()
+
+# Setup structured events
+emitter = EventEmitter()
+transport = EventTransport()
+bridge = EventBridge(emitter, transport)
+
+# Subscribe to structured events
+emitter.subscribe(lambda event: print(f"Event: {event.event_type}"))
+
 task_manager = TaskManager(config, adapter)
 
 # Start a task programmatically
@@ -172,12 +228,19 @@ task_manager.start_task("Your task description here")
 ```
 browser_ai_gui/
 ├── __init__.py           # Package initialization
-├── event_adapter.py     # Log capture and event streaming
+├── event_adapter.py     # Legacy log capture and event streaming
+├── events/              # New structured event system
+│   ├── __init__.py      # Public event system API
+│   ├── schemas.py       # Event data structures
+│   ├── emitter.py       # Event emission (pub-sub)
+│   ├── transport.py     # Event transport layer
+│   └── bridge.py        # Integration bridge
 ├── config.py            # Configuration management
+├── protocol.py          # WebSocket protocol definitions
+├── websocket_server.py  # Extension WebSocket server
 ├── web_app.py           # Flask web application
 ├── tkinter_gui.py       # Desktop GUI application
 ├── main.py              # Main entry points
-├── requirements.txt     # Additional dependencies
 └── templates/
     └── index.html       # Web interface template
 ```
