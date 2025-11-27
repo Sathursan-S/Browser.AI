@@ -31,6 +31,12 @@ from browser_ai.controller.views import (
 from browser_ai.location_service import LocationDetector
 from browser_ai.utils import time_execution_async, time_execution_sync
 import browser_ai.actions as actions
+from browser_ai.event_bus.core import EventManager
+from browser_ai.event_bus.events import (
+    ActionExecutionCompletedEvent,
+    ActionExecutionFailedEvent,
+    ActionExecutionStartedEvent,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +46,13 @@ class Controller:
         self,
         exclude_actions: list[str] = [],
         output_model: Optional[Type[BaseModel]] = None,
+        event_manager: Optional[EventManager] = None,
     ):
         self.exclude_actions = exclude_actions
         self.output_model = output_model
         self.registry = Registry(exclude_actions)
         self.location_detector = LocationDetector()  # Initialize location detector
+        self.event_manager = event_manager or EventManager()
         self._register_default_actions()
 
     def _register_default_actions(self):
@@ -340,9 +348,17 @@ class Controller:
     ) -> ActionResult:
         """Execute an action"""
 
+        action_name = ""
+        params = {}
         try:
             for action_name, params in action.model_dump(exclude_unset=True).items():
                 if params is not None:
+                    self.event_manager.publish(
+                        "controller",
+                        ActionExecutionStartedEvent(
+                            action_name=action_name, action_params=params
+                        ),
+                    )
                     with Laminar.start_as_current_span(
                         name=action_name,
                         input={
@@ -361,7 +377,14 @@ class Controller:
                         )
 
                         Laminar.set_span_output(result)
-
+                    self.event_manager.publish(
+                        "controller",
+                        ActionExecutionCompletedEvent(
+                            action_name=action_name,
+                            action_params=params,
+                            result=str(result),
+                        ),
+                    )
                     if isinstance(result, str):
                         return ActionResult(extracted_content=result)
                     elif isinstance(result, ActionResult):
@@ -374,4 +397,13 @@ class Controller:
                         )
             return ActionResult()
         except Exception as e:
+            self.event_manager.publish(
+                "controller",
+                ActionExecutionFailedEvent(
+                    action_name=action_name,
+                    action_params=params,
+                    error_message=str(e),
+                    error_type=type(e).__name__,
+                ),
+            )
             raise e

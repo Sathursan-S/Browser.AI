@@ -43,6 +43,19 @@ from browser_ai.dom.history_tree_processor.service import (
 )
 from browser_ai.utils import time_execution_async
 from browser_ai.agent.media import create_history_gif
+from browser_ai.event_bus.core import EventManager, EventHandler
+from browser_ai.event_bus.events import (
+    AgentCompletedEvent,
+    AgentFailedEvent,
+    AgentStartedEvent,
+    AgentStepCompletedEvent,
+    AgentStepFailedEvent,
+    AgentStepStartedEvent,
+    LLMRequestCompletedEvent,
+    LLMRequestFailedEvent,
+    LLMRequestStartedEvent,
+)
+from browser_ai.event_bus.handlers.console import ConsoleHandler
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -58,7 +71,8 @@ class Agent:
         llm: BaseChatModel,
         browser: Browser | None = None,
         browser_context: BrowserContext | None = None,
-        controller: Controller = Controller(),
+        controller: Controller = None,
+        event_handlers: Optional[List[EventHandler]] = None,
         use_vision: bool = True,
         use_vision_for_planner: bool = False,
         save_conversation_path: Optional[str] = None,
@@ -109,6 +123,12 @@ class Agent:
         self.use_vision = use_vision
         self.use_vision_for_planner = use_vision_for_planner
         self.llm = llm
+        self.event_manager = EventManager()
+        if event_handlers:
+            for handler in event_handlers:
+                self.event_manager.subscribe("*", handler)
+        else:
+            self.event_manager.subscribe("*", ConsoleHandler())
         self.save_conversation_path = save_conversation_path
         if self.save_conversation_path and "/" not in self.save_conversation_path:
             self.save_conversation_path = f"{self.save_conversation_path}/"
@@ -123,7 +143,7 @@ class Agent:
         self.planning_interval = planner_interval
         self.last_plan = None
         # Controller setup
-        self.controller = controller
+        self.controller = controller or Controller(event_manager=self.event_manager)
         self.max_actions_per_step = max_actions_per_step
 
         # Browser setup
@@ -291,6 +311,10 @@ class Agent:
     async def step(self, step_info: Optional[AgentStepInfo] = None) -> None:
         """Execute one step of the task"""
         logger.info(f"📍 Step {self.n_steps}")
+        self.event_manager.publish(
+            "agent",
+            AgentStepStartedEvent(step_number=self.n_steps, agent_id=self.agent_id),
+        )
         state = None
         model_output = None
         result: list[ActionResult] = []
@@ -402,6 +426,15 @@ class Agent:
         except Exception as e:
             result = await self._handle_step_error(e)
             self._last_result = result
+            self.event_manager.publish(
+                "agent",
+                AgentStepFailedEvent(
+                    step_number=self.n_steps,
+                    agent_id=self.agent_id,
+                    error_message=str(e),
+                    error_type=type(e).__name__,
+                ),
+            )
 
         finally:
             actions = (
@@ -414,6 +447,16 @@ class Agent:
 
             if state:
                 self._make_history_item(model_output, state, result)
+
+            self.event_manager.publish(
+                "agent",
+                AgentStepCompletedEvent(
+                    step_number=self.n_steps,
+                    agent_id=self.agent_id,
+                    actions_taken=actions,
+                    result=str(result),
+                ),
+            )
 
     async def _handle_step_error(self, error: Exception) -> list[ActionResult]:
         """Handle all types of errors that can occur during a step"""
@@ -510,34 +553,55 @@ class Agent:
             input_messages, self.model_name
         )
 
-        if (
-            self.model_name == "deepseek-reasoner"
-            or self.model_name.startswith("deepseek-r1")
-            or self.model_name.startswith("gemini")
-        ):
-            output = self.llm.invoke(converted_input_messages)
-            output.content = self._remove_think_tags(output.content)
-            # TODO: currently invoke does not return reasoning_content, we should override invoke
-            try:
-                parsed_json = self.message_manager.extract_json_from_model_output(
-                    output.content
+        self.event_manager.publish(
+            "llm",
+            LLMRequestStartedEvent(model_name=self.model_name, purpose="action"),
+        )
+        try:
+            if (
+                self.model_name == "deepseek-reasoner"
+                or self.model_name.startswith("deepseek-r1")
+                or self.model_name.startswith("gemini")
+            ):
+                output = self.llm.invoke(converted_input_messages)
+                output.content = self._remove_think_tags(output.content)
+                # TODO: currently invoke does not return reasoning_content, we should override invoke
+                try:
+                    parsed_json = self.message_manager.extract_json_from_model_output(
+                        output.content
+                    )
+                    parsed = self.AgentOutput(**parsed_json)
+                except (ValueError, ValidationError) as e:
+                    logger.warning(f"Failed to parse model output: {output} {str(e)}")
+                    raise ValueError("Could not parse response.")
+            elif self.tool_calling_method is None:
+                structured_llm = self.llm.with_structured_output(
+                    self.AgentOutput, include_raw=True
                 )
-                parsed = self.AgentOutput(**parsed_json)
-            except (ValueError, ValidationError) as e:
-                logger.warning(f"Failed to parse model output: {output} {str(e)}")
-                raise ValueError("Could not parse response.")
-        elif self.tool_calling_method is None:
-            structured_llm = self.llm.with_structured_output(
-                self.AgentOutput, include_raw=True
+                response: dict[str, Any] = await structured_llm.ainvoke(input_messages)  # type: ignore
+                parsed: AgentOutput | None = response["parsed"]
+            else:
+                structured_llm = self.llm.with_structured_output(
+                    self.AgentOutput, include_raw=True, method=self.tool_calling_method
+                )
+                response: dict[str, Any] = await structured_llm.ainvoke(input_messages)  # type: ignore
+                parsed: AgentOutput | None = response["parsed"]
+
+            self.event_manager.publish(
+                "llm",
+                LLMRequestCompletedEvent(model_name=self.model_name, purpose="action"),
             )
-            response: dict[str, Any] = await structured_llm.ainvoke(input_messages)  # type: ignore
-            parsed: AgentOutput | None = response["parsed"]
-        else:
-            structured_llm = self.llm.with_structured_output(
-                self.AgentOutput, include_raw=True, method=self.tool_calling_method
+        except Exception as e:
+            self.event_manager.publish(
+                "llm",
+                LLMRequestFailedEvent(
+                    model_name=self.model_name,
+                    purpose="action",
+                    error_message=str(e),
+                    error_type=type(e).__name__,
+                ),
             )
-            response: dict[str, Any] = await structured_llm.ainvoke(input_messages)  # type: ignore
-            parsed: AgentOutput | None = response["parsed"]
+            raise
 
         if parsed is None:
             raise ValueError("Could not parse response.")
@@ -620,6 +684,12 @@ class Agent:
     @observe(name="agent.run", ignore_output=True)
     async def run(self, max_steps: int = 100) -> AgentHistoryList:
         """Execute the task with maximum number of steps"""
+        self.event_manager.publish(
+            "agent",
+            AgentStartedEvent(
+                task=self.task, agent_id=self.agent_id, use_vision=self.use_vision
+            ),
+        )
         try:
             self._log_agent_run()
 
@@ -651,13 +721,43 @@ class Agent:
                             continue
 
                     logger.info("✅ Task completed successfully")
+                    self.event_manager.publish(
+                        "agent",
+                        AgentCompletedEvent(
+                            task=self.task,
+                            agent_id=self.agent_id,
+                            total_steps=self.n_steps,
+                            success=True,
+                            final_result=self.history.get_final_result(),
+                        ),
+                    )
                     if self.register_done_callback:
                         self.register_done_callback(self.history)
                     break
             else:
                 logger.info("❌ Failed to complete task in maximum steps")
+                self.event_manager.publish(
+                    "agent",
+                    AgentFailedEvent(
+                        task=self.task,
+                        agent_id=self.agent_id,
+                        error_message="Failed to complete task in maximum steps",
+                        total_steps=self.n_steps,
+                    ),
+                )
 
             return self.history
+        except Exception as e:
+            self.event_manager.publish(
+                "agent",
+                AgentFailedEvent(
+                    task=self.task,
+                    agent_id=self.agent_id,
+                    error_message=str(e),
+                    total_steps=self.n_steps,
+                ),
+            )
+            raise
         finally:
             if not self.injected_browser_context:
                 await self.browser_context.close()
