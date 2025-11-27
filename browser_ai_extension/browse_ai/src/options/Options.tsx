@@ -166,13 +166,11 @@ export const Options = () => {
       await chrome.storage.sync.set({ settings })
       setSaveStatus('saved')
 
-
       // Notify all tabs about settings update
       chrome.runtime.sendMessage({
         type: 'SETTINGS_UPDATED',
         settings,
       })
-
 
       setTimeout(() => setSaveStatus('idle'), 2000)
     } catch (error) {
@@ -233,11 +231,18 @@ export const Options = () => {
   return (
     <div className="options-container">
       <header className="options-header">
-        <h1>Browze.AI Settings</h1>
-        <p className="subtitle">Configure your browser automation extension</p>
-
-        <div className="connection-status" style={{ color: getConnectionStatusColor() }}>
-          {getConnectionStatusText()}
+        <div className="header-content">
+          <div className="logo-section">
+            <div className="logo-icon">🤖</div>
+            <div className="title-section">
+              <h1>Browze.AI</h1>
+              <p className="subtitle">Intelligent Browser Automation</p>
+            </div>
+          </div>
+          <div className="connection-status" style={{ color: getConnectionStatusColor() }}>
+            <span className="status-dot"></span>
+            {getConnectionStatusText()}
+          </div>
         </div>
       </header>
 
@@ -615,16 +620,32 @@ export const Options = () => {
       </div>
 
       <footer className="options-footer">
-        <p>Browser.AI Extension v1.0.0</p>
-        <p>
-          <a
-            href="https://github.com/Sathursan-S/Browser.AI"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            View Documentation
-          </a>
-        </p>
+        <div className="footer-content">
+          <div className="footer-brand">
+            <span className="footer-logo">🤖</span>
+            <span className="footer-text">Browser.AI Extension</span>
+            <span className="footer-version">v1.0.0</span>
+          </div>
+          <div className="footer-links">
+            <a
+              href="https://github.com/Sathursan-S/Browser.AI"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="footer-link"
+            >
+              📚 Documentation
+            </a>
+            <a
+              href="https://github.com/Sathursan-S/Browser.AI/issues"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="footer-link"
+            >
+              🐛 Report Issue
+            </a>
+          </div>
+        </div>
+        <p className="footer-copyright">Made with ❤️ for intelligent browser automation</p>
       </footer>
     </div>
   )
