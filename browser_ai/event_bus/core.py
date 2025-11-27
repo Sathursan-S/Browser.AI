@@ -102,7 +102,7 @@ class EventManager:
         if event.topic != topic:
             logger.warning(f"Event topic mismatch! Publishing to '{topic}' but event's topic is '{event.topic}'.")
 
-        logger.info(f"--- Publishing event '{event.name}' to topic '{topic}' (async) ---")
+        logger.debug(f"--- Publishing event '{event.name}' to topic '{topic}' (async) ---")
         handlers = self._get_handlers_for_topic(topic)
         
         sync_handlers = [h for h in handlers if not inspect.iscoroutinefunction(h.handle)]
@@ -120,7 +120,7 @@ class EventManager:
         if event.topic != topic:
             logger.warning(f"Event topic mismatch! Publishing to '{topic}' but event's topic is '{event.topic}'.")
             
-        logger.info(f"--- Publishing event '{event.name}' to topic '{topic}' (sync) ---")
+        logger.debug(f"--- Publishing event '{event.name}' to topic '{topic}' (sync) ---")
         handlers = self._get_handlers_for_topic(topic)
 
         sync_handlers = [h for h in handlers if not inspect.iscoroutinefunction(h.handle)]

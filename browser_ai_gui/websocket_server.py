@@ -12,6 +12,7 @@ and control t            self.browser = Browser(config=browser_config)
                 task=task_description,
                 llm=llm,
                 browser=self.browser,
+                event_handlers=[WebSocketEventHandler(self.socketio, namespace='/extension')],
                 use_vision=self.config_manager.agent_config.use_vision,
                 max_failures=self.config_manager.agent_config.max_failures,
                 retry_delay=self.config_manager.agent_config.retry_delay,
@@ -46,6 +47,7 @@ from .protocol import (
     create_task_status,
 )
 from browser_ai.agent.views import AgentHistoryList
+from browser_ai.event_bus.handlers.websocket import WebSocketEventHandler
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +116,7 @@ class ExtensionTaskManager:
                 task=task_description,
                 llm=llm,
                 browser=self.browser,
+                event_handlers=[WebSocketEventHandler(self.socketio, namespace='/extension')],
                 use_vision=self.config_manager.agent_config.use_vision,
                 max_failures=self.config_manager.agent_config.max_failures,
                 retry_delay=self.config_manager.agent_config.retry_delay,
