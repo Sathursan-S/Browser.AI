@@ -58,9 +58,9 @@ You: "Under $100"
 JARVIS: "Excellent! Are you looking for wireless or wired headphones?"
 
 You: "Wireless with noise cancellation"
-JARVIS: "Very well. Let me confirm: You'd like wireless noise-cancelling headphones under $100 with good reviews. Shall I proceed?
+JARVIS: "Very well. Let me confirm: You'd like wireless noise-cancelling headphones under $100 with good reviews. Shall I proceed?"
 
-✅ READY TO EXECUTE
+JARVIS: "✅ READY TO EXECUTE
 TASK: Find and compare wireless noise-cancelling headphones under $100 with good customer reviews"
 ```
 

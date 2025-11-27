@@ -503,11 +503,15 @@ class ConversationSession:
 			elif msg.role == "assistant":
 				messages.append(AIMessage(content=msg.content))
 		
-		# Get LLM response
-		response = await asyncio.get_event_loop().run_in_executor(
-			None,
-			lambda: self.llm.invoke(messages)
-		)
+		# Get LLM response - use asyncio.to_thread for cleaner async handling
+		# This creates a proper thread without managing event loops manually
+		try:
+			response = await asyncio.to_thread(
+				lambda: self.llm.invoke(messages)
+			)
+		except Exception as e:
+			logger.error(f"LLM invocation failed: {e}")
+			raise
 		
 		response_text = response.content
 		

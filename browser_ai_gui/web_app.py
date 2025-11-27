@@ -276,13 +276,16 @@ class WebApp:
                 return jsonify({"success": False, "error": "Message required"}), 400
 
             try:
-                # Process message asynchronously
+                # Process message asynchronously with proper loop management
                 def process_async():
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
-                    return loop.run_until_complete(
-                        self.voice_service.process_voice_input(session_id, message, language)
-                    )
+                    try:
+                        return loop.run_until_complete(
+                            self.voice_service.process_voice_input(session_id, message, language)
+                        )
+                    finally:
+                        loop.close()
                 
                 response, task_plan = process_async()
                 
