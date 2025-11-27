@@ -3,6 +3,9 @@ Browser AI GUI Package
 
 This package provides web and desktop interfaces for Browser.AI automation.
 Includes chat-style interfaces similar to GitHub Copilot for task management.
+
+Now includes JARVIS voice conversation mode for natural language interaction
+with multi-language support (English, Tamil, Sinhala).
 """
 
 try:
@@ -27,12 +30,24 @@ try:
 		DESKTOP_AVAILABLE = False
 		BrowserAIGUI = None
 
+	# Voice conversation service (JARVIS mode)
+	try:
+		from .services.voice_conversation import VoiceConversationService, JarvisPersona
+
+		VOICE_AVAILABLE = True
+	except ImportError:
+		VOICE_AVAILABLE = False
+		VoiceConversationService = None
+		JarvisPersona = None
+
 	__all__ = ['EventAdapter', 'LogEvent', 'EventType', 'LogLevel', 'ConfigManager']
 
 	if WEB_AVAILABLE:
 		__all__.append('WebApp')
 	if DESKTOP_AVAILABLE:
 		__all__.append('BrowserAIGUI')
+	if VOICE_AVAILABLE:
+		__all__.extend(['VoiceConversationService', 'JarvisPersona'])
 
 except ImportError as e:
 	# Graceful degradation if dependencies are missing
