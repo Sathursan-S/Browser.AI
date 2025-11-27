@@ -35,14 +35,12 @@ from typing import Optional, Set
 from flask import Flask
 from flask_socketio import SocketIO, emit
 
+from browser_ai.agent.views import AgentHistoryList
+
+from .chatbot_service import ChatbotIntent, ChatbotService, ConversationMessage
 from .config import ConfigManager
 from .event_adapter import EventAdapter, EventType, LogEvent, LogLevel
-from .chatbot_service import ChatbotService, ConversationMessage, ChatbotIntent
-from .stuck_detector import StuckDetector, StuckDetectionConfig
-from .events import (
-    EventEmitter,
-    EventTransport,
-)
+from .events import EventEmitter, EventTransport
 from .events.bridge import EventBridge
 from .protocol import (
     ActionResult,
@@ -51,7 +49,7 @@ from .protocol import (
     create_action_result,
     create_task_status,
 )
-from browser_ai.agent.views import AgentHistoryList
+from .stuck_detector import StuckDetectionConfig, StuckDetector
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +61,12 @@ class ExtensionTaskManager:
         self,
         config_manager: ConfigManager,
         event_adapter: EventAdapter,
+        event_bridge: EventBridge,
         socketio: Optional[SocketIO] = None,
     ):
         self.config_manager = config_manager
         self.event_adapter = event_adapter
+        self.event_bridge = event_bridge
         self.socketio = socketio
         self.current_agent = None
         self.current_task = None
@@ -79,23 +79,21 @@ class ExtensionTaskManager:
         self._finalize_lock = threading.Lock()
         self.browser = None
         self.cdp_endpoint = None
+        self.agent_id = None
+        self.session_id = str(uuid.uuid4())  # Generate session ID
 
-        # Initialize structured event system
-        self.event_emitter = EventEmitter()
-        self.event_transport = EventTransport(
-            socketio=socketio, namespace="/extension", event_name="structured_event"
+        # Initialize stuck detector
+        self.stuck_detector = StuckDetector(
+            StuckDetectionConfig(
+                max_time_without_progress=30.0,
+                stuck_action_threshold=3,
+                action_history_size=5,
+            )
         )
-        self.event_bridge = EventBridge(self.event_emitter, self.event_transport)
-        self.event_transport.connect()
 
-        # Generate session ID for tracking related events
-        self.session_id = str(uuid.uuid4())
-        self.agent_id: Optional[str] = None
-
-        # Stuck detection
-        self.stuck_detector = StuckDetector(StuckDetectionConfig())
+        # Initialize user help attributes
         self.awaiting_user_help = False
-        self.user_help_response: Optional[str] = None
+        self.user_help_response = None
 
     def register_thread(self, thread: threading.Thread) -> None:
         """Register the thread running the agent so we can join/track it."""
@@ -123,6 +121,12 @@ class ExtensionTaskManager:
             )
 
             self.browser = Browser(config=browser_config)
+
+            # Reset stuck detector for new task
+            self.stuck_detector.reset()
+
+            # Generate agent ID
+            self.agent_id = str(uuid.uuid4())
 
             # Create agent
             self.current_agent = Agent(
@@ -408,7 +412,7 @@ class ExtensionTaskManager:
                     EventType.AGENT_COMPLETE,
                     "Task completed successfully",
                     LogLevel.INFO,
-                    {"task": self.current_task},
+                    {"task": self.current_task, "agent_id": self.agent_id},
                 )
             else:
                 self.event_adapter.emit_custom_event(
@@ -482,6 +486,10 @@ class ExtensionTaskManager:
             self.event_adapter.emit_custom_event(
                 EventType.AGENT_STOP, "Task stopped by user", LogLevel.INFO
             )
+
+            # Force cleanup of browser processes
+            self._force_cleanup_browser_processes()
+
             # Attempt a short join of the background thread to allow it to finish cleanup
             try:
                 if self.task_thread and self.task_thread.is_alive():
@@ -588,7 +596,37 @@ class ExtensionTaskManager:
         self.user_help_response = response
         logger.info(f"📝 User provided help: {response[:100]}...")
 
-    def _on_agent_step(self, state, output, step_num):
+    def _force_cleanup_browser_processes(self):
+        """Force cleanup of any remaining browser processes"""
+        try:
+            import psutil
+            import os
+
+            current_process = psutil.Process(os.getpid())
+            children = current_process.children(recursive=True)
+            for child in children:
+                try:
+                    process_name = child.name().lower()
+                    if any(
+                        browser in process_name
+                        for browser in ["chrome", "chromium", "firefox", "webkit"]
+                    ):
+                        logger.info(
+                            f"Force terminating browser process: {child.name()} (PID: {child.pid})"
+                        )
+                        child.terminate()
+                        try:
+                            child.wait(timeout=1.0)
+                        except psutil.TimeoutExpired:
+                            child.kill()
+                except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+                    logger.debug(f"Could not terminate process: {e}")
+        except ImportError:
+            logger.debug("psutil not available for process cleanup")
+        except Exception as e:
+            logger.debug(f"Error during force process cleanup: {e}")
+
+    def _on_agent_step(self, output, step_num):
         """Callback invoked after each agent step to check for stuck state"""
         # Start the step timer
         self.stuck_detector.start_step()
@@ -637,9 +675,15 @@ class ExtensionWebSocketHandler:
         self.socketio = socketio
         self.config_manager = config_manager
         self.event_adapter = event_adapter
+
+        # Create event bridge for structured events
+        event_emitter = EventEmitter()
+        event_transport = EventTransport(socketio=socketio, namespace="/extension")
+        event_bridge = EventBridge(event_emitter, event_transport)
+
         # Pass socketio into the task manager so it can emit from background threads
         self.task_manager = ExtensionTaskManager(
-            config_manager, event_adapter, socketio
+            config_manager, event_adapter, event_bridge, socketio
         )
         self.connected_clients: Set[str] = set()
 

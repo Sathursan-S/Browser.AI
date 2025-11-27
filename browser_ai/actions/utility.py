@@ -14,12 +14,12 @@ from browser_ai.controller.views import (
 
 logger = logging.getLogger(__name__)
 
+
 async def done(params: BaseModel | DoneAction):
     if isinstance(params, DoneAction):
         return ActionResult(is_done=True, extracted_content=params.text)
-    return ActionResult(
-        is_done=True, extracted_content=params.model_dump_json()
-    )
+    return ActionResult(is_done=True, extracted_content=params.model_dump_json())
+
 
 async def switch_tab(params: SwitchTabAction, browser: BrowserContext):
     await browser.switch_to_tab(params.page_id)
@@ -30,15 +30,15 @@ async def switch_tab(params: SwitchTabAction, browser: BrowserContext):
     logger.info(msg)
     return ActionResult(extracted_content=msg, include_in_memory=True)
 
+
 async def open_tab(params: OpenTabAction, browser: BrowserContext):
     await browser.create_new_tab(params.url)
     msg = f"🔗  Opened new tab with {params.url}"
     logger.info(msg)
     return ActionResult(extracted_content=msg, include_in_memory=True)
 
-async def request_user_help(
-    params: RequestUserHelpAction, browser: BrowserContext
-):
+
+async def request_user_help(params: RequestUserHelpAction, browser: BrowserContext):
     msg = f"🙋‍♂️ Requesting user help: {params.message}"
     logger.warning(msg)
     logger.warning(f"Reason: {params.reason}")
@@ -64,9 +64,8 @@ async def request_user_help(
         },
     )
 
-async def ask_user_question(
-    params: AskUserQuestionAction, browser: BrowserContext
-):
+
+async def ask_user_question(params: AskUserQuestionAction, browser: BrowserContext):
     msg = f"❓ Agent question: {params.question}"
     logger.info(msg)
     logger.info(f"Context: {params.context}")

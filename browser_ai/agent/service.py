@@ -22,6 +22,7 @@ from lmnr import observe
 from openai import RateLimitError
 from pydantic import BaseModel, ValidationError
 
+from browser_ai.agent.media import create_history_gif
 from browser_ai.agent.message_manager.service import MessageManager
 from browser_ai.agent.prompts import AgentMessagePrompt, PlannerPrompt, SystemPrompt
 from browser_ai.agent.views import (
@@ -42,7 +43,6 @@ from browser_ai.dom.history_tree_processor.service import (
     HistoryTreeProcessor,
 )
 from browser_ai.utils import time_execution_async
-from browser_ai.agent.media import create_history_gif
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -675,7 +675,7 @@ class Agent:
                 # 3. Generate a unique filename
                 # Note: I'm replacing "uuid" with a call to the uuid module for a real example
                 filename = f"agent_history-{self.task}-{uuid.uuid4()}.gif"
-                
+
                 # 4. Combine the directory and filename to create the full path
                 output_path = os.path.join(output_dir, filename)
 
@@ -684,9 +684,7 @@ class Agent:
                     output_path = self.generate_gif
 
                 create_history_gif(
-                    task=self.task,
-                    history=self.history,
-                    output_path=output_path
+                    task=self.task, history=self.history, output_path=output_path
                 )
 
     def _too_many_failures(self) -> bool:

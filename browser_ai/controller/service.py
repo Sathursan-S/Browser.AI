@@ -6,6 +6,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from lmnr import Laminar, observe
 from pydantic import BaseModel
 
+import browser_ai.actions as actions
 from browser_ai.agent.views import ActionModel, ActionResult
 from browser_ai.browser.context import BrowserContext
 from browser_ai.controller.registry.service import Registry
@@ -30,7 +31,6 @@ from browser_ai.controller.views import (
 )
 from browser_ai.location_service import LocationDetector
 from browser_ai.utils import time_execution_async, time_execution_sync
-import browser_ai.actions as actions
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +88,9 @@ class Controller:
             browser: BrowserContext,
             page_extraction_llm: BaseChatModel,
         ):
-            return await actions.search_google_with_ai(params, browser, page_extraction_llm)
+            return await actions.search_google_with_ai(
+                params, browser, page_extraction_llm
+            )
 
         @self.registry.action(
             "Find the best website for a specific purpose (shopping, downloading, services, etc.). Use this FIRST before attempting to shop, download, or access specific content. Returns suggested websites to try.",
@@ -97,7 +99,9 @@ class Controller:
         async def find_best_website(
             params: FindBestWebsiteAction, browser: BrowserContext
         ):
-            return await actions.find_best_website(params, browser, self.location_detector)
+            return await actions.find_best_website(
+                params, browser, self.location_detector
+            )
 
         @self.registry.action(
             "Detect user location (country, currency, timezone) to provide personalized shopping experience. Use this BEFORE shopping tasks to get region-specific websites and currency information.",
@@ -106,7 +110,9 @@ class Controller:
         async def detect_location(
             params: DetectLocationAction, browser: BrowserContext
         ):
-            return await actions.detect_location(params, browser, self.location_detector)
+            return await actions.detect_location(
+                params, browser, self.location_detector
+            )
 
         @self.registry.action(
             "Search for products on e-commerce websites. You can specify any e-commerce site (amazon.com, ebay.com, daraz.lk, ikman.lk, glomark.lk, etc.) or leave blank to use location-based default. IMPORTANT: Use detect_location and find_best_website first for shopping tasks.",
@@ -115,7 +121,9 @@ class Controller:
         async def search_ecommerce(
             params: SearchEcommerceAction, browser: BrowserContext
         ):
-            return await actions.search_ecommerce(params, browser, self.location_detector)
+            return await actions.search_ecommerce(
+                params, browser, self.location_detector
+            )
 
         @self.registry.action(
             "Navigate to URL in the current tab", param_model=GoToUrlAction
@@ -183,7 +191,9 @@ class Controller:
         @self.registry.action(
             description="Check if the current URL contains specific text (case-insensitive). Returns true/false. Useful for verifying navigation, email sent (check for 'sent' or 'sentitems'), form submission, etc.",
         )
-        async def check_url_contains(text: str, browser: BrowserContext) -> ActionResult:
+        async def check_url_contains(
+            text: str, browser: BrowserContext
+        ) -> ActionResult:
             return await actions.check_url_contains(text, browser)
 
         @self.registry.action(
@@ -192,14 +202,18 @@ class Controller:
         async def wait_for_url_change(
             contains_text: str = "",
             timeout_seconds: int = 10,
-            browser: BrowserContext = None
+            browser: BrowserContext = None,
         ) -> ActionResult:
-            return await actions.wait_for_url_change(contains_text, timeout_seconds, browser)
+            return await actions.wait_for_url_change(
+                contains_text, timeout_seconds, browser
+            )
 
         @self.registry.action(
             description="Check if specific text exists on the current page. Returns true/false. Useful for verifying confirmation messages like 'Email sent', 'Message sent', 'Success', etc.",
         )
-        async def check_page_contains_text(text: str, browser: BrowserContext) -> ActionResult:
+        async def check_page_contains_text(
+            text: str, browser: BrowserContext
+        ) -> ActionResult:
             return await actions.check_page_contains_text(text, browser)
 
         @self.registry.action(
