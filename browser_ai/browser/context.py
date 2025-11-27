@@ -217,7 +217,7 @@ class BrowserContext:
 
 		# Check if there's an existing page we can use
 		existing_pages = context.pages
-		if existing_pages:
+		if existing_pages and not self.browser.config.cdp_url:
 			page = existing_pages[-1]  # Use the last existing page
 			logger.debug('Reusing existing page')
 		else:
