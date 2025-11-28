@@ -11,12 +11,27 @@ The JARVIS (Just A Rather Very Intelligent System) conversation mode provides:
 - **Task planning through dialogue** - Clarifies requirements before executing
 - **Free and locally runnable** - Uses browser's Web Speech API for voice recognition
 
+## Access Methods
+
+### 1. Chrome Extension (Recommended)
+The JARVIS conversation mode is integrated into the Browser.AI Chrome extension:
+1. Open the Browser.AI extension side panel
+2. Click the conversation mode toggle button (💬 icon)
+3. Select your preferred language from the language selector
+4. Start speaking or typing to interact with JARVIS
+
+### 2. Web Interface
+Access via the standalone web interface:
+1. Start the Browser.AI web application
+2. Navigate to `/jarvis` endpoint
+3. Or click "🤖 JARVIS" button from the main interface
+
 ## Features
 
 ### 1. Voice Conversation
-- Click the orb or press **Space** to start speaking
-- The assistant will respond with both text and voice
-- Press **Escape** to cancel recording
+- Click the microphone button or use Live Voice Mode for hands-free interaction
+- The assistant will respond with both text and voice (Text-to-Speech)
+- Live Voice Mode enables continuous conversation without clicking
 
 ### 2. Multi-Language Support
 
@@ -25,6 +40,8 @@ The JARVIS (Just A Rather Very Intelligent System) conversation mode provides:
 | English | `en` | en-US, en-GB | English |
 | Tamil | `ta` | ta-IN, ta-LK | தமிழ் |
 | Sinhala | `si` | si-LK | සිංහල |
+
+Switch languages using the language selector at the top of the conversation interface.
 
 ### 3. JARVIS Persona
 The AI assistant embodies the JARVIS persona:
@@ -42,11 +59,6 @@ JARVIS will:
 4. Execute the task through Browser.AI
 
 ## Getting Started
-
-### Access the Interface
-1. Start the Browser.AI web application
-2. Navigate to `/jarvis` endpoint
-3. Or click "JARVIS Mode" from the main interface
 
 ### Basic Interaction Flow
 

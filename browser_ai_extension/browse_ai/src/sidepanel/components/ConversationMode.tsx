@@ -13,12 +13,20 @@ export interface Message {
   role: 'user' | 'assistant'
   content: string
   timestamp?: string
+  language?: string
 }
 
 export interface Intent {
   task_description: string
   is_ready: boolean
   confidence: number
+}
+
+// Supported languages for JARVIS conversation
+export const SUPPORTED_LANGUAGES = {
+  en: { name: 'English', speechCode: 'en-US' },
+  ta: { name: 'தமிழ்', speechCode: 'ta-IN' },
+  si: { name: 'සිංහල', speechCode: 'si-LK' },
 }
 
 interface ConversationModeProps {
@@ -48,6 +56,9 @@ export const ConversationMode = ({
   const [isProcessing, setIsProcessing] = useState(false)
   const [isSpeechEnabled, setIsSpeechEnabled] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
+  
+  // Language state for JARVIS multi-language support
+  const [currentLanguage, setCurrentLanguage] = useState<'en' | 'ta' | 'si'>('en')
   const [isListening, setIsListening] = useState(false)
   const [interimTranscript, setInterimTranscript] = useState('')
   const [voiceError, setVoiceError] = useState<string | null>(null)
@@ -138,20 +149,29 @@ export const ConversationMode = ({
     }
   }, [messages, isLiveVoiceMode])
 
-  // Initialize voice recognition
+  // Initialize voice recognition with current language
   useEffect(() => {
     const isSupported = voiceRecognition.isRecognitionSupported()
     console.log('🎤 ConversationMode Voice Recognition Support:', isSupported)
 
     if (isSupported) {
+      const speechCode = SUPPORTED_LANGUAGES[currentLanguage]?.speechCode || 'en-US'
       voiceRecognition.initialize({
         continuous: false,
         interimResults: true,
-        language: 'en-US',
+        language: speechCode,
       })
-      console.log('🎤 ConversationMode Voice Recognition Initialized')
+      console.log(`🎤 ConversationMode Voice Recognition Initialized with language: ${speechCode}`)
     }
-  }, [])
+  }, [currentLanguage])
+
+  // Update voice conversation language when language changes
+  useEffect(() => {
+    if (isLiveVoiceMode) {
+      const speechCode = SUPPORTED_LANGUAGES[currentLanguage]?.speechCode || 'en-US'
+      voiceConversation.updateConfig({ language: speechCode })
+    }
+  }, [currentLanguage, isLiveVoiceMode])
 
   // Monitor messages to reset processing state
   useEffect(() => {
@@ -163,19 +183,13 @@ export const ConversationMode = ({
     }
   }, [messages])
 
-  // Initial greeting when connected
+  // Request JARVIS greeting when connected - with language support
   useEffect(() => {
-    if (connected && messages.length === 0) {
-      setMessages([
-        {
-          role: 'assistant',
-          content:
-            "👋 Hi! I'm your Browser.AI assistant. What would you like me to help you automate today? I can help with shopping, downloads, research, form filling, and more!",
-          timestamp: new Date().toISOString(),
-        },
-      ])
+    if (connected && messages.length === 0 && socket) {
+      // Request greeting from server with current language
+      socket.emit('reset_conversation', { language: currentLanguage })
     }
-  }, [connected, messages, setMessages])
+  }, [connected, messages.length, socket, currentLanguage])
 
   const handleSendMessage = () => {
     if (!input.trim() || !connected || isProcessing) return
@@ -184,6 +198,7 @@ export const ConversationMode = ({
       role: 'user',
       content: input.trim(),
       timestamp: new Date().toISOString(),
+      language: currentLanguage,
     }
 
     setMessages([...messages, userMessage])
@@ -198,11 +213,23 @@ export const ConversationMode = ({
       // Send as help response
       socket.emit('user_help_response', { response: input.trim() })
     } else {
-      // Send as regular chat message
-      socket.emit('chat_message', { message: input.trim() })
+      // Send as regular chat message with language
+      socket.emit('chat_message', { message: input.trim(), language: currentLanguage })
     }
 
     setInput('')
+  }
+
+  // Handle language change
+  const handleLanguageChange = (lang: 'en' | 'ta' | 'si') => {
+    setCurrentLanguage(lang)
+    if (socket && connected) {
+      socket.emit('set_language', { language: lang })
+      // Reset conversation with new language
+      socket.emit('reset_conversation', { language: lang })
+      setMessages([])
+      setIntent(null)
+    }
   }
 
   const handleStartAutomation = () => {
@@ -305,6 +332,10 @@ export const ConversationMode = ({
         setInterimTranscript('')
       }
 
+      // Configure voice conversation with current language
+      const speechCode = SUPPORTED_LANGUAGES[currentLanguage]?.speechCode || 'en-US'
+      voiceConversation.updateConfig({ language: speechCode })
+
       // Start the voice conversation
       voiceConversation.start(
         // State change callback
@@ -316,7 +347,7 @@ export const ConversationMode = ({
             setLiveTranscript(stateInfo.transcript)
           }
         },
-        // Message ready callback - auto send
+        // Message ready callback - auto send with language
         (message: string) => {
           console.log('🎙️ Auto-sending message:', message)
 
@@ -325,6 +356,7 @@ export const ConversationMode = ({
             role: 'user',
             content: message,
             timestamp: new Date().toISOString(),
+            language: currentLanguage,
           }
 
           setMessages([...messages, userMessage])
@@ -332,8 +364,8 @@ export const ConversationMode = ({
           isWaitingForResponseRef.current = true
           setLiveTranscript('')
 
-          // Send to backend
-          socket.emit('chat_message', { message })
+          // Send to backend with language
+          socket.emit('chat_message', { message, language: currentLanguage })
         },
         // Error callback
         (error: string) => {
@@ -345,7 +377,7 @@ export const ConversationMode = ({
   }
 
   const handleResetConversation = () => {
-    socket.emit('reset_conversation')
+    socket.emit('reset_conversation', { language: currentLanguage })
     setIntent(null)
     textToSpeech.stop()
     lastSpokenIndexRef.current = -1
@@ -522,6 +554,21 @@ export const ConversationMode = ({
 
   return (
     <div className="conversation-mode">
+      {/* Language Selector */}
+      <div className="language-selector">
+        <span className="language-label">🌐</span>
+        {Object.entries(SUPPORTED_LANGUAGES).map(([code, { name }]) => (
+          <button
+            key={code}
+            className={`language-btn ${currentLanguage === code ? 'active' : ''}`}
+            onClick={() => handleLanguageChange(code as 'en' | 'ta' | 'si')}
+            title={name}
+          >
+            {name}
+          </button>
+        ))}
+      </div>
+
       {/* Live Voice Mode Status Bar */}
       {isLiveVoiceMode && (
         <div className={`live-voice-status ${conversationState}`}>

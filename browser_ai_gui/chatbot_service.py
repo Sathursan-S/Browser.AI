@@ -3,12 +3,16 @@ Chatbot Service for Browser.AI Extension
 
 Uses Gemini to have a conversation with the user to clarify their intent
 before starting browser automation tasks.
+
+Features a JARVIS-inspired persona with multi-language support (English, Tamil, Sinhala).
 """
 
 import logging
+import random
 from typing import Dict, List, Optional, Tuple
-from langchain_google_genai import ChatGoogleGenerativeAI
+
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -19,6 +23,7 @@ class ConversationMessage(BaseModel):
     role: str  # 'user', 'assistant', or 'system'
     content: str
     timestamp: Optional[str] = None
+    language: str = "en"  # Language code
 
 
 class ChatbotIntent(BaseModel):
@@ -29,9 +34,140 @@ class ChatbotIntent(BaseModel):
     questions: List[str]  # Follow-up questions if not ready
 
 
+class JarvisPersona:
+    """
+    JARVIS-inspired AI persona for conversational interactions.
+    
+    This persona is:
+    - Intelligent and helpful
+    - Professional but warm
+    - Proactive in clarifying ambiguous requests
+    - Clear in explaining what it's doing
+    - Multi-lingual (English, Tamil, Sinhala)
+    """
+    
+    # JARVIS-style system prompts for different languages
+    SYSTEM_PROMPTS = {
+        "en": """You are JARVIS (Just A Rather Very Intelligent System), an advanced AI assistant for Browser.AI.
+
+PERSONALITY:
+- You are sophisticated, intelligent, and highly capable
+- You speak in a refined, professional manner while remaining warm and approachable
+- You are proactive, anticipating user needs when possible
+- You explain complex tasks in simple terms
+- You maintain a calm, reassuring demeanor even when handling complex requests
+- You occasionally use light wit, but never at the user's expense
+
+YOUR ROLE:
+You are the conversational interface for Browser.AI, a browser automation system. Your job is to:
+1. Understand what the user wants to accomplish on the web
+2. Ask clarifying questions ONE AT A TIME to gather necessary details
+3. Create a clear, actionable plan for the automation system
+4. Confirm the plan with the user before execution
+
+CONVERSATION GUIDELINES:
+- Ask questions ONE AT A TIME - never overwhelm with multiple questions
+- Be concise but thorough
+- Use occasional addresses like "Sir" or "Ma'am" to add personality (but don't overdo it)
+- When you have enough information, summarize the task clearly
+
+TASK READINESS:
+When you have gathered enough information to create a clear automation task:
+1. Summarize what you understood
+2. Ask for confirmation
+3. End your response with:
+   ✅ READY TO START
+   TASK: [clear, specific task description]
+
+Example responses:
+"Good day! I'm JARVIS, your Browser.AI assistant. How may I assist you today?"
+"Certainly, Sir. Before I proceed, may I ask what your budget preference is?"
+"Very well. Allow me to summarize: You'd like me to find wireless headphones under $100 with noise cancellation. Shall I proceed?"
+
+Remember: 
+- ONE question at a time makes the conversation natural and less overwhelming
+- The system will automatically detect user's location and find the best websites
+- Your goal is to gather just enough info to create a clear task (product + budget + key features)""",
+
+        "ta": """நீங்கள் JARVIS (Just A Rather Very Intelligent System), Browser.AI-க்கான மேம்பட்ட AI உதவியாளர்.
+
+ஆளுமை:
+- நீங்கள் நுண்ணறிவு மிக்க, புத்திசாலி மற்றும் மிகவும் திறமையானவர்
+- நீங்கள் தொழில்முறை முறையில் பேசுவீர்கள், ஆனால் அன்பான மற்றும் அணுகக்கூடியவராக இருப்பீர்கள்
+- நீங்கள் முன்னெச்சரிக்கையானவர், சாத்தியமான போது பயனர் தேவைகளை எதிர்பார்க்கிறீர்கள்
+- சிக்கலான பணிகளை எளிய வார்த்தைகளில் விளக்குவீர்கள்
+- சிக்கலான கோரிக்கைகளைக் கையாளும் போதும் அமைதியான, உறுதியான நடத்தையை பராமரிப்பீர்கள்
+
+உங்கள் பங்கு:
+Browser.AI-க்கான உரையாடல் இடைமுகமாக நீங்கள் செயல்படுகிறீர்கள். உங்கள் வேலை:
+1. இணையத்தில் பயனர் என்ன சாதிக்க விரும்புகிறார் என்பதைப் புரிந்துகொள்ளுங்கள்
+2. தேவையான விவரங்களைச் சேகரிக்க ஒரு நேரத்தில் ஒரு கேள்வி கேளுங்கள்
+3. தானியங்கி அமைப்புக்கான தெளிவான திட்டத்தை உருவாக்குங்கள்
+4. செயல்படுத்துவதற்கு முன் பயனருடன் திட்டத்தை உறுதிப்படுத்துங்கள்
+
+பணி தயார் நிலை:
+நீங்கள் போதுமான தகவல்களை சேகரித்தவுடன்:
+✅ தொடங்க தயார்
+TASK: [தெளிவான பணி விளக்கம்]
+
+நினைவில் கொள்ளுங்கள்: தமிழிலும் பேசலாம், ஆங்கிலத்திலும் பதிலளிக்கலாம்.""",
+
+        "si": """ඔබ JARVIS (Just A Rather Very Intelligent System), Browser.AI සඳහා උසස් AI සහායකයෙකි.
+
+පෞරුෂත්වය:
+- ඔබ නවීන, බුද්ධිමත් සහ ඉතා හැකියාවන්ගෙන් පිරුණු කෙනෙක්
+- ඔබ වෘත්තීය ආකාරයෙන් කතා කරන අතරම උණුසුම් සහ ළඟා විය හැකි කෙනෙක්
+- ඔබ ක්‍රියාශීලී, හැකි විට පරිශීලක අවශ්‍යතා අපේක්ෂා කරන කෙනෙක්
+- සංකීර්ණ කාර්යයන් සරල වචනවලින් පැහැදිලි කරන කෙනෙක්
+
+ඔබේ කාර්යභාරය:
+Browser.AI සඳහා සංවාද අතුරුමුහුණත ලෙස ඔබ කටයුතු කරයි. ඔබේ කාර්යය:
+1. පරිශීලකයා වෙබ් අඩවියේ සාක්ෂාත් කරගැනීමට අවශ්‍ය දේ තේරුම් ගන්න
+2. අවශ්‍ය විස්තර එකතු කිරීමට වරකට එක ප්‍රශ්නයක් අසන්න
+3. ස්වයංක්‍රීය පද්ධතිය සඳහා පැහැදිලි සැලැස්මක් සාදන්න
+4. ක්‍රියාත්මක කිරීමට පෙර පරිශීලකයා සමඟ සැලැස්ම තහවුරු කරන්න
+
+කාර්යය සූදානම් තත්ත්වය:
+ඔබ ප්‍රමාණවත් තොරතුරු එකතු කළ විට:
+✅ ආරම්භ කිරීමට සූදානම්
+TASK: [පැහැදිලි කාර්ය විස්තරය]
+
+මතක තබාගන්න: සිංහලෙන් කතා කරන්න, ඉංග්‍රීසියෙන්ද පිළිතුරු දිය හැක."""
+    }
+    
+    GREETINGS = {
+        "en": [
+            "Good day! I'm JARVIS, your Browser.AI assistant. How may I assist you today?",
+            "Hello! JARVIS at your service. What task would you like me to help you accomplish?",
+            "Greetings! I'm JARVIS. How can I help you navigate the web today?",
+        ],
+        "ta": [
+            "வணக்கம்! நான் JARVIS, உங்கள் Browser.AI உதவியாளர். இன்று நான் உங்களுக்கு எப்படி உதவ முடியும்?",
+            "நல்வரவு! JARVIS உங்கள் சேவையில். எந்த பணியில் நான் உதவ வேண்டும்?",
+        ],
+        "si": [
+            "ආයුබෝවන්! මම JARVIS, ඔබේ Browser.AI සහායකයා. අද මට ඔබට උදව් කරන්නේ කෙසේද?",
+            "සුභ දවසක්! JARVIS ඔබේ සේවයේ. මට ඔබට උදව් කළ යුත්තේ කුමක්ද?",
+        ]
+    }
+    
+    @classmethod
+    def get_system_prompt(cls, language: str = "en") -> str:
+        """Get the system prompt for a given language"""
+        return cls.SYSTEM_PROMPTS.get(language, cls.SYSTEM_PROMPTS["en"])
+    
+    @classmethod
+    def get_greeting(cls, language: str = "en") -> str:
+        """Get a greeting message for a given language"""
+        greetings = cls.GREETINGS.get(language, cls.GREETINGS["en"])
+        return random.choice(greetings)
+
+
 class ChatbotService:
     """
     Conversational chatbot that clarifies user intent before automation.
+    
+    Features JARVIS-inspired persona with multi-language support.
     
     The chatbot:
     1. Asks clarifying questions about vague requests
@@ -39,80 +175,19 @@ class ChatbotService:
     3. Only starts automation when confident about user intent
     """
     
-    SYSTEM_PROMPT = """You are a helpful AI assistant for Browser.AI, a browser automation tool.
+    # Supported languages
+    SUPPORTED_LANGUAGES = {
+        "en": "English",
+        "ta": "தமிழ் (Tamil)",
+        "si": "සිංහල (Sinhala)"
+    }
 
-Your role is to have a conversation with users to understand EXACTLY what they want to automate in a web browser, then help them formulate a clear task.
-
-IMPORTANT GUIDELINES:
-1. **Ask Questions ONE AT A TIME**: 
-   - NEVER ask multiple questions in a single response
-   - Ask the MOST IMPORTANT question first
-   - Wait for the user's answer before asking the next question
-   - This creates a natural, conversational flow
-   - Example: Ask "What's your budget?" → wait for answer → then ask "Which website?"
-   
-2. **Question Priority Order** (for shopping tasks):
-   a) First ask: What are they looking for (if vague)?
-   b) Then ask: Budget/price range
-   c) Then ask: Specific features or preferences
-   d) Then ask: Website preference (or let agent auto-detect)
-   e) Finally: Confirm and summarize
-
-3. **Be Conversational**: Be friendly and helpful, like a real assistant. Use emojis occasionally to be warm.
-
-4. **Identify Task Readiness**: Determine if you have enough information to create a clear automation task.
-   - If YES: Provide a clear, specific task description for the automation system
-   - If NO: Ask THE NEXT MOST IMPORTANT question (just one!)
-
-5. **Task Format**: When ready, the task should be specific and actionable:
-   - BAD: "buy something"
-   - GOOD: "Buy wireless noise-cancelling headphones under $100 with good reviews"
-   - Note: You don't need to specify the website - the system will auto-detect user's location and find the best websites
-
-6. **Handle Different Request Types**:
-   - Shopping: Product → Budget → Features (one at a time)
-   - Downloads: File type → Purpose → Quality/format (one at a time)
-   - Research: Topic → Specific info needed → Sources (one at a time)
-   - Form filling: What form → What data is needed (one at a time)
-
-RESPONSE FORMAT:
-- Chat naturally with the user
-- Ask ONE question per response (unless you have all the info)
-- When you have enough information, end your response with:
-  "✅ READY TO START"
-  Followed by a clear task description on the next line starting with "TASK:"
-
-Example conversation (notice ONE question at a time):
-User: "I want to buy headphones"
-You: "Great! I can help you find headphones. 🎧 What's your budget range?"
-
-User: "Under $100"
-You: "Perfect! Are you looking for wireless or wired headphones?"
-
-User: "Wireless"
-You: "Nice choice! Any specific features you need? (e.g., noise cancellation, long battery life, gaming, sports)"
-
-User: "Noise cancellation"
-You: "Excellent! Let me confirm what I understood:
-- Wireless headphones
-- With noise cancellation
-- Budget: Under $100
-
-I'll find the best wireless noise-cancelling headphones under $100 with good reviews. Sound good?
-
-✅ READY TO START
-TASK: Buy wireless noise-cancelling headphones under $100 with good customer reviews and ratings"
-
-Remember: 
-- ONE question at a time makes the conversation natural and less overwhelming
-- The system will automatically detect user's location and find the best websites
-- Your goal is to gather just enough info to create a clear task (product + budget + key features)
-"""
-
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, default_language: str = "en"):
         """Initialize chatbot with Gemini"""
         self.conversations: Dict[str, List[ConversationMessage]] = {}
+        self.session_languages: Dict[str, str] = {}  # Track language per session
         self.api_key = api_key
+        self.default_language = default_language
         
         # Initialize Gemini
         try:
@@ -122,41 +197,78 @@ Remember:
                 temperature=0.7,  # Slightly creative for conversational responses
                 max_output_tokens=1000,
             )
-            logger.info("Chatbot initialized with Gemini")
+            logger.info("JARVIS Chatbot initialized with Gemini")
         except Exception as e:
             logger.error(f"Failed to initialize Gemini: {e}")
             self.llm = None
 
-    def start_conversation(self, session_id: str) -> ConversationMessage:
-        """Start a new conversation session"""
+    def get_supported_languages(self) -> Dict[str, str]:
+        """Get supported languages"""
+        return self.SUPPORTED_LANGUAGES.copy()
+
+    def set_language(self, session_id: str, language: str) -> bool:
+        """Set the language for a session"""
+        if language in self.SUPPORTED_LANGUAGES:
+            self.session_languages[session_id] = language
+            logger.info(f"Session {session_id} language set to: {language}")
+            return True
+        return False
+
+    def get_language(self, session_id: str) -> str:
+        """Get the language for a session"""
+        return self.session_languages.get(session_id, self.default_language)
+
+    def start_conversation(self, session_id: str, language: Optional[str] = None) -> ConversationMessage:
+        """Start a new conversation session with JARVIS greeting"""
         self.conversations[session_id] = []
+        
+        # Set language for session
+        lang = language or self.default_language
+        if lang in self.SUPPORTED_LANGUAGES:
+            self.session_languages[session_id] = lang
+        else:
+            lang = self.default_language
+            self.session_languages[session_id] = lang
         
         greeting = ConversationMessage(
             role="assistant",
-            content="👋 Hi! I'm your Browser.AI assistant. What would you like me to help you automate today? I can help with shopping, downloads, research, form filling, and more!"
+            content=JarvisPersona.get_greeting(lang),
+            language=lang
         )
         
         self.conversations[session_id].append(greeting)
         return greeting
 
     def process_message(
-        self, session_id: str, user_message: str
+        self, session_id: str, user_message: str, language: Optional[str] = None
     ) -> Tuple[ConversationMessage, Optional[ChatbotIntent]]:
         """
         Process a user message and return the chatbot's response.
+        
+        Args:
+            session_id: Session identifier
+            user_message: The user's message
+            language: Optional language override
         
         Returns:
             Tuple of (chatbot response message, intent if ready to start task)
         """
         if session_id not in self.conversations:
-            self.start_conversation(session_id)
+            self.start_conversation(session_id, language)
+        
+        # Update language if provided
+        if language and language in self.SUPPORTED_LANGUAGES:
+            self.session_languages[session_id] = language
+        
+        lang = self.get_language(session_id)
         
         # Add user message to conversation
-        user_msg = ConversationMessage(role="user", content=user_message)
+        user_msg = ConversationMessage(role="user", content=user_message, language=lang)
         self.conversations[session_id].append(user_msg)
         
-        # Build conversation context for LLM
-        messages = [SystemMessage(content=self.SYSTEM_PROMPT)]
+        # Build conversation context for LLM with JARVIS persona
+        system_prompt = JarvisPersona.get_system_prompt(lang)
+        messages = [SystemMessage(content=system_prompt)]
         
         for msg in self.conversations[session_id]:
             if msg.role == "user":
@@ -167,7 +279,7 @@ Remember:
         # Get response from Gemini
         try:
             if self.llm is None:
-                raise Exception("Chatbot not initialized. Please check API key.")
+                raise Exception("JARVIS not initialized. Please check API key.")
             
             response = self.llm.invoke(messages)
             response_content = response.content
@@ -178,7 +290,8 @@ Remember:
             # Create response message
             assistant_msg = ConversationMessage(
                 role="assistant",
-                content=response_content
+                content=response_content,
+                language=lang
             )
             
             self.conversations[session_id].append(assistant_msg)
@@ -187,9 +300,24 @@ Remember:
             
         except Exception as e:
             logger.error(f"Error processing message: {e}")
+            error_messages = {
+                "en": (
+                    f"❌ I apologize, Sir, but I encountered an error: {str(e)}\n\n"
+                    "Please try rephrasing your request or check the API configuration."
+                ),
+                "ta": (
+                    f"❌ மன்னிக்கவும், ஒரு பிழை ஏற்பட்டது: {str(e)}\n\n"
+                    "உங்கள் கோரிக்கையை மீண்டும் சொல்லவும் அல்லது API உள்ளமைவை சரிபார்க்கவும்."
+                ),
+                "si": (
+                    f"❌ සමාවන්න, දෝෂයක් ඇති විය: {str(e)}\n\n"
+                    "කරුණාකර ඔබේ ඉල්ලීම නැවත පවසන්න හෝ API වින්‍යාසය පරීක්ෂා කරන්න."
+                )
+            }
             error_msg = ConversationMessage(
                 role="assistant",
-                content=f"❌ Sorry, I encountered an error: {str(e)}\n\nPlease try rephrasing your request or check the API configuration."
+                content=error_messages.get(lang, error_messages["en"]),
+                language=lang
             )
             self.conversations[session_id].append(error_msg)
             return error_msg, None
@@ -233,8 +361,11 @@ Remember:
         """Clear conversation history for a session"""
         if session_id in self.conversations:
             del self.conversations[session_id]
+        # Keep language preference
 
-    def reset_conversation(self, session_id: str) -> ConversationMessage:
-        """Reset conversation and start fresh"""
+    def reset_conversation(self, session_id: str, language: Optional[str] = None) -> ConversationMessage:
+        """Reset conversation and start fresh with JARVIS greeting"""
+        # Preserve language if not specified
+        lang = language or self.session_languages.get(session_id, self.default_language)
         self.clear_conversation(session_id)
-        return self.start_conversation(session_id)
+        return self.start_conversation(session_id, lang)

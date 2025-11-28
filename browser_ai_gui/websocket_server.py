@@ -34,10 +34,11 @@ from typing import Optional, Set
 from flask import Flask
 from flask_socketio import SocketIO, emit
 
+from browser_ai.agent.views import AgentHistoryList
+
+from .chatbot_service import ChatbotService
 from .config import ConfigManager
 from .event_adapter import EventAdapter, EventType, LogEvent, LogLevel
-from .chatbot_service import ChatbotService, ConversationMessage, ChatbotIntent
-from .stuck_detector import StuckDetector, StuckDetectionConfig
 from .protocol import (
     ActionResult,
     StartTaskPayload,
@@ -45,7 +46,7 @@ from .protocol import (
     create_action_result,
     create_task_status,
 )
-from browser_ai.agent.views import AgentHistoryList
+from .stuck_detector import StuckDetectionConfig, StuckDetector
 
 logger = logging.getLogger(__name__)
 
@@ -694,6 +695,7 @@ class ExtensionWebSocketHandler:
 
             session_id = request.sid
             user_message = data.get("message", "").strip()
+            language = data.get("language")  # Optional language parameter
 
             if not user_message:
                 emit(
@@ -702,13 +704,14 @@ class ExtensionWebSocketHandler:
                         "role": "assistant",
                         "content": "Please provide a message.",
                         "intent": None,
+                        "language": language or "en",
                     },
                 )
                 return
 
-            # Process message through chatbot
+            # Process message through chatbot with language support
             response_msg, intent = self.chatbot.process_message(
-                session_id, user_message
+                session_id, user_message, language
             )
 
             # Prepare response
@@ -716,6 +719,7 @@ class ExtensionWebSocketHandler:
                 "role": response_msg.role,
                 "content": response_msg.content,
                 "intent": None,
+                "language": response_msg.language,
             }
 
             # If intent is ready, include it
@@ -726,12 +730,12 @@ class ExtensionWebSocketHandler:
                     "confidence": intent.confidence,
                 }
 
-                logger.info(f"Chatbot clarified intent: {intent.task_description}")
+                logger.info(f"JARVIS clarified intent: {intent.task_description}")
 
                 # Emit event indicating task is ready to start
                 self.event_adapter.emit_custom_event(
                     EventType.AGENT_START,
-                    f"Task clarified through conversation: {intent.task_description}",
+                    f"Task clarified through JARVIS conversation: {intent.task_description}",
                     LogLevel.INFO,
                     {"task": intent.task_description},
                 )
@@ -823,16 +827,54 @@ class ExtensionWebSocketHandler:
             )
 
         @self.socketio.on("reset_conversation", namespace="/extension")
-        def handle_reset_conversation():
-            """Handle conversation reset request"""
+        def handle_reset_conversation(data=None):
+            """Handle conversation reset request with optional language"""
             from flask import request
 
             session_id = request.sid
-            greeting = self.chatbot.reset_conversation(session_id)
+            language = data.get("language") if data else None
+            greeting = self.chatbot.reset_conversation(session_id, language)
 
             emit(
                 "conversation_reset",
-                {"role": greeting.role, "content": greeting.content},
+                {
+                    "role": greeting.role,
+                    "content": greeting.content,
+                    "language": greeting.language,
+                },
+            )
+
+        @self.socketio.on("set_language", namespace="/extension")
+        def handle_set_language(data):
+            """Handle language change request"""
+            from flask import request
+
+            session_id = request.sid
+            language = data.get("language", "en")
+
+            success = self.chatbot.set_language(session_id, language)
+            
+            if success:
+                emit(
+                    "language_changed",
+                    {
+                        "language": language,
+                        "display_name": self.chatbot.SUPPORTED_LANGUAGES.get(language, "Unknown"),
+                    },
+                )
+                logger.info(f"Session {session_id} language changed to: {language}")
+            else:
+                emit(
+                    "error",
+                    {"message": f"Unsupported language: {language}"},
+                )
+
+        @self.socketio.on("get_languages", namespace="/extension")
+        def handle_get_languages():
+            """Return list of supported languages"""
+            emit(
+                "supported_languages",
+                {"languages": self.chatbot.get_supported_languages()},
             )
 
     def broadcast_event(self, event: LogEvent):
