@@ -4,7 +4,6 @@ import logging
 import os
 import platform
 import textwrap
-import uuid
 from io import BytesIO
 from typing import Optional
 

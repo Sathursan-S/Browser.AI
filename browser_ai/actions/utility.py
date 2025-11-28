@@ -48,7 +48,7 @@ async def request_user_help(params: RequestUserHelpAction, browser: BrowserConte
         page = await browser.get_current_page()
         current_url = page.url
         logger.info(f"Current page: {current_url}")
-    except Exception as e:
+    except Exception:
         current_url = "Unknown"
 
     # This will create a special result that signals the web interface to pause and request user input

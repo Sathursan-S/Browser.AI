@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from typing import Callable, Dict, Optional, Type
 
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -30,9 +31,7 @@ from browser_ai.controller.views import (
     SwitchTabAction,
 )
 from browser_ai.location_service import LocationDetector
-from browser_ai.utils import time_execution_async, time_execution_sync, LatencyAnalyzer
-import browser_ai.actions as actions
-import time
+from browser_ai.utils import LatencyAnalyzer, time_execution_async, time_execution_sync
 
 logger = logging.getLogger(__name__)
 

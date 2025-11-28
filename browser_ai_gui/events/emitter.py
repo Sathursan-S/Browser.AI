@@ -12,7 +12,7 @@ Implements the event emitter following SOLID principles:
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Callable, Dict, List, Optional, Set
+from typing import Callable, Dict, Optional, Set
 
 from .schemas import BaseEvent, EventCategory
 

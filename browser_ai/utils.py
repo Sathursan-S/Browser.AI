@@ -1,7 +1,7 @@
+import io
 import logging
 import time
 import uuid
-import io
 from functools import wraps
 from typing import Any, Callable, Coroutine, ParamSpec, TypeVar
 

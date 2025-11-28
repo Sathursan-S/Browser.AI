@@ -200,8 +200,9 @@ class BrowserContext:
 
             # Force cleanup of browser processes
             try:
-                import psutil
                 import os
+
+                import psutil
 
                 current_process = psutil.Process(os.getpid())
                 children = current_process.children(recursive=True)

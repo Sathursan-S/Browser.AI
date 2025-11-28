@@ -1,9 +1,10 @@
 import asyncio
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from browser_ai_gui.config import ConfigManager
 from browser_ai_gui.event_adapter import EventAdapter, EventType, LogLevel
+
 
 class TaskManager:
     """Manages Browser.AI task execution"""

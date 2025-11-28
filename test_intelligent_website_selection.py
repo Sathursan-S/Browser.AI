@@ -8,10 +8,11 @@ This script tests:
 """
 
 import asyncio
-from browser_ai.controller.views import FindBestWebsiteAction, SearchEcommerceAction
-from browser_ai.controller.service import Controller
+
 from browser_ai.browser.browser import Browser
 from browser_ai.browser.context import BrowserContext
+from browser_ai.controller.service import Controller
+from browser_ai.controller.views import FindBestWebsiteAction, SearchEcommerceAction
 
 
 async def test_action_models():
@@ -108,7 +109,7 @@ async def test_find_best_website_execution():
         )
         
         result = await find_best_website_action(params, context)
-        print(f"✓ Action executed successfully!")
+        print("✓ Action executed successfully!")
         print(f"  Result: {result.extracted_content[:100]}...")
         
         await browser.close()

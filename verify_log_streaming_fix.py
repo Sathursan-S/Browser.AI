@@ -12,9 +12,11 @@ from datetime import datetime
 print("Testing protocol imports...")
 try:
     from browser_ai_gui.protocol import (
-        LogEvent as ProtocolLogEvent,
-        LogLevel,
         EventType,
+        LogLevel,
+    )
+    from browser_ai_gui.protocol import (
+        LogEvent as ProtocolLogEvent,
     )
 
     print("✅ Protocol imports successful")
@@ -26,9 +28,13 @@ except Exception as e:
 print("\nTesting event_adapter uses protocol types...")
 try:
     from browser_ai_gui.event_adapter import (
-        LogEvent as AdapterLogEvent,
-        LogLevel as AdapterLogLevel,
         EventType as AdapterEventType,
+    )
+    from browser_ai_gui.event_adapter import (
+        LogEvent as AdapterLogEvent,
+    )
+    from browser_ai_gui.event_adapter import (
+        LogLevel as AdapterLogLevel,
     )
 
     # Verify they're the same classes

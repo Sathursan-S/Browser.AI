@@ -7,13 +7,13 @@ to track agent execution, progress, and results.
 """
 
 import json
+
 from browser_ai_gui.events import (
-    EventEmitter,
-    EventTransport,
-    EventCategory,
-    EventSeverity,
     AgentActionEvent,
     AgentProgressEvent,
+    EventCategory,
+    EventEmitter,
+    EventTransport,
     LLMOutputEvent,
     create_event_id,
     create_timestamp,

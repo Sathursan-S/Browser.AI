@@ -160,7 +160,7 @@ async def wait_for_url_change(
         logger.info(msg)
         return ActionResult(extracted_content=msg, include_in_memory=True)
 
-    except Exception as e:
+    except Exception:
         msg = f"Timeout: URL did not change as expected. Current URL: {page.url}"
         logger.warning(msg)
         return ActionResult(extracted_content=msg, include_in_memory=True)
@@ -310,7 +310,7 @@ async def find_purchase_elements(browser: BrowserContext):  # type: ignore
             )
             continue
 
-    msg = f"🛒  Could not find purchase elements after 5 scroll attempts"
+    msg = "🛒  Could not find purchase elements after 5 scroll attempts"
     logger.info(msg)
     return ActionResult(extracted_content=msg, include_in_memory=True)
 

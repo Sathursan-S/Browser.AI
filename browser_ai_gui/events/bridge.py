@@ -8,6 +8,7 @@ event system to the new structured event system.
 import logging
 from typing import Optional
 
+from ..protocol import LogEvent
 from .emitter import EventEmitter, create_event_id, create_timestamp
 from .schemas import (
     AgentActionEvent,
@@ -21,7 +22,6 @@ from .schemas import (
     TaskStateChangeEvent,
 )
 from .transport import EventTransport
-from ..protocol import EventType, LogEvent, LogLevel
 
 logger = logging.getLogger(__name__)
 

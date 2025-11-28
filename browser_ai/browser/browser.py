@@ -246,8 +246,9 @@ class Browser:
 
             # Force cleanup of any remaining subprocesses on Windows
             try:
-                import psutil
                 import os
+
+                import psutil
 
                 current_process = psutil.Process(os.getpid())
                 children = current_process.children(recursive=True)

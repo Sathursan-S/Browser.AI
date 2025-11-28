@@ -7,9 +7,9 @@ including currency detection, regional website suggestions, and localized conten
 
 import logging
 import re
-from typing import Optional, Dict, Any
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 

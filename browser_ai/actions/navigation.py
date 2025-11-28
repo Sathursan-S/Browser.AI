@@ -1,6 +1,5 @@
 import logging
 import urllib.parse
-from typing import Optional
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.prompts import PromptTemplate

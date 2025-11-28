@@ -13,11 +13,11 @@ from typing import Any, Dict, Optional
 from flask import Flask, jsonify, render_template, request, send_from_directory
 from flask_socketio import SocketIO, emit
 
-from .config import ConfigManager
-from .event_adapter import EventAdapter, EventType, LogEvent, LogLevel
-from .websocket_server import setup_extension_websocket, ExtensionWebSocketHandler
 from .cdp_websocket_server import setup_cdp_websocket
+from .config import ConfigManager
+from .event_adapter import EventAdapter, LogEvent
 from .services.task_manager import TaskManager
+from .websocket_server import ExtensionWebSocketHandler, setup_extension_websocket
 
 
 class WebApp:
@@ -191,7 +191,7 @@ class WebApp:
 
         @self.app.route("/api/task/resume", methods=["POST"])
         def resume_task():
-            print(f"DEBUG: Resume task endpoint called")
+            print("DEBUG: Resume task endpoint called")
             result = self.task_manager.resume_task()
             print(f"DEBUG: Resume result: {result}")
             return jsonify(result)
@@ -226,7 +226,7 @@ class WebApp:
         def handle_user_help_completed():
             """Handle user completing CAPTCHA or other manual intervention"""
             try:
-                print(f"DEBUG: Socket resume_after_user_help called")
+                print("DEBUG: Socket resume_after_user_help called")
                 result = self.task_manager.resume_task()
                 print(f"DEBUG: Socket resume result: {result}")
                 emit("user_help_response", result)

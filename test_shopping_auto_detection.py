@@ -4,9 +4,11 @@ Verifies that shopping tasks automatically inject location detection actions.
 """
 
 import asyncio
-from browser_ai import Agent
-from langchain_google_genai import ChatGoogleGenerativeAI
+
 from dotenv import load_dotenv
+from langchain_google_genai import ChatGoogleGenerativeAI
+
+from browser_ai import Agent
 
 load_dotenv()
 

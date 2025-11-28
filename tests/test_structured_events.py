@@ -2,17 +2,17 @@
 Tests for the structured event system
 """
 
+
 import pytest
-from datetime import datetime
 
 from browser_ai_gui.events import (
-    EventEmitter,
-    EventTransport,
-    AgentStartEvent,
     AgentCompleteEvent,
     AgentErrorEvent,
+    AgentStartEvent,
     EventCategory,
+    EventEmitter,
     EventSeverity,
+    EventTransport,
     create_event_id,
     create_timestamp,
 )

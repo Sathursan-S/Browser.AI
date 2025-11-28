@@ -24,7 +24,6 @@ from openai import RateLimitError
 from pydantic import BaseModel, ValidationError
 
 from browser_ai.agent.media import create_history_gif
-from browser_ai.agent.media import create_history_gif
 from browser_ai.agent.message_manager.service import MessageManager
 from browser_ai.agent.prompts import AgentMessagePrompt, PlannerPrompt, SystemPrompt
 from browser_ai.agent.views import (

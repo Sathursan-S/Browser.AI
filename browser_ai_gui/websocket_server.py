@@ -37,7 +37,7 @@ from flask_socketio import SocketIO, emit
 
 from browser_ai.agent.views import AgentHistoryList
 
-from .chatbot_service import ChatbotIntent, ChatbotService, ConversationMessage
+from .chatbot_service import ChatbotService
 from .config import ConfigManager
 from .event_adapter import EventAdapter, EventType, LogEvent, LogLevel
 from .events import EventEmitter, EventTransport
@@ -604,8 +604,9 @@ class ExtensionTaskManager:
     def _force_cleanup_browser_processes(self):
         """Force cleanup of any remaining browser processes"""
         try:
-            import psutil
             import os
+
+            import psutil
 
             current_process = psutil.Process(os.getpid())
             children = current_process.children(recursive=True)

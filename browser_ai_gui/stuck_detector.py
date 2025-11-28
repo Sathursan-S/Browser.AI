@@ -8,8 +8,8 @@ and requests user assistance via the chatbot interface.
 import logging
 import time
 from collections import deque
-from typing import Optional, Dict, Any, List
 from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -213,12 +213,12 @@ class StuckDetector:
         
         # Create detailed summary
         summary_parts = [
-            f"🤔 **The agent appears to be stuck**",
-            f"",
+            "🤔 **The agent appears to be stuck**",
+            "",
             f"**Issue:** {reason}",
             f"**Duration:** {int(duration)}s ({self.step_count} steps attempted)",
-            f"",
-            f"**Recent Actions:**"
+            "",
+            "**Recent Actions:**"
         ]
         
         for i, record in enumerate(list(self.action_history)[-5:], 1):
@@ -227,14 +227,14 @@ class StuckDetector:
             summary_parts.append(f"{i}. `{record.action_name}` - {status}{error_info}")
         
         summary_parts.extend([
-            f"",
+            "",
             f"**Question:** {suggestion}",
-            f"",
-            f"💡 You can:",
-            f"- Provide specific guidance on what to try",
-            f"- Ask the agent to skip this part and move on",
-            f"- Request a summary of what was accomplished so far",
-            f"- Stop the task if needed"
+            "",
+            "💡 You can:",
+            "- Provide specific guidance on what to try",
+            "- Ask the agent to skip this part and move on",
+            "- Request a summary of what was accomplished so far",
+            "- Stop the task if needed"
         ])
         
         detailed_summary = "\n".join(summary_parts)
