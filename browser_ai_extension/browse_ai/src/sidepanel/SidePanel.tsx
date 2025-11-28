@@ -4,6 +4,7 @@ import { io, Socket } from 'socket.io-client'
 import { ChatInput } from './components/ChatInput'
 import { ConversationMode } from './components/ConversationMode'
 import { StepList } from './components/TaskProgress/StepList'
+import LiveKitJarvisMode from './components/LiveKitJarvisMode'
 import { TaskStatusHeader } from './components/TaskProgress/TaskStatusHeader'
 import { VoiceVisualizer } from './components/Visuals/VoiceVisualizer'
 import { LogEvent } from './components/ExecutionLog'
@@ -71,7 +72,7 @@ export const SidePanel = () => {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   // Mode State for switching between Agent and Conversation modes
-  const [mode, setMode] = useState<'agent' | 'conversation'>('agent')
+  const [mode, setMode] = useState<'agent' | 'conversation' | 'livekit-jarvis'>('agent')
 
   // Conversation State
   const [messages, setMessages] = useState<
@@ -501,6 +502,9 @@ export const SidePanel = () => {
         </div>
       </header>
 
+      {mode === 'livekit-jarvis' ? (
+        <LiveKitJarvisMode />
+      ) : (
       {/* Main Content Area */}
       <div
         ref={scrollRef}
@@ -607,6 +611,7 @@ export const SidePanel = () => {
             isRunning={taskStatus.is_running}
             isPaused={taskStatus.is_paused}
             disabled={!connected}
+            onToggleLiveKitJarvisMode={() => setMode('livekit-jarvis')}
             // Voice input is now handled within conversation mode components.
           />
         </div>
