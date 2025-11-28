@@ -12,6 +12,7 @@ from typing import Any, Dict, Optional
 
 from flask import Flask, jsonify, render_template, request, send_from_directory
 from flask_socketio import SocketIO, emit
+from livekit.api import AccessToken, VideoGrants
 
 from .config import ConfigManager
 from .event_adapter import EventAdapter, EventType, LogEvent, LogLevel
@@ -200,6 +201,19 @@ class WebApp:
         def pause_task():
             result = self.task_manager.pause_task()
             return jsonify(result)
+
+        @self.app.route("/api/livekit-token", methods=["GET"])
+        def get_livekit_token():
+            # In a real application, you would authenticate the user before generating a token
+            token = AccessToken("devkey", "secret").with_identity("jarvis-user").with_name("JARVIS User").with_grants(
+                VideoGrants(
+                    room_join=True,
+                    room="test-room",
+                    can_publish=True,
+                    can_publish_data=True,
+                )
+            ).to_jwt()
+            return jsonify({"token": token})
 
     def _setup_socketio_events(self):
         """Setup SocketIO events"""

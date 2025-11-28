@@ -7,6 +7,7 @@ interface ChatInputProps {
   onStopTask?: () => void
   onPauseTask?: () => void
   onResumeTask?: () => void
+  onToggleLiveKitJarvisMode?: () => void;
   disabled?: boolean
   isRunning?: boolean
   isPaused?: boolean
@@ -15,7 +16,7 @@ interface ChatInputProps {
   onListeningChange?: (isListening: boolean) => void // Prop to notify parent
 }
 
-export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask, disabled = false, isRunning = false, isPaused = false, placeholder, enableVoice = true, onListeningChange }: ChatInputProps) => {
+export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask, onToggleLiveKitJarvisMode, disabled = false, isRunning = false, isPaused = false, placeholder, enableVoice = true, onListeningChange }: ChatInputProps) => {
   const [input, setInput] = useState('')
   const [isFocused, setIsFocused] = useState(false)
   const [isListening, setIsListening] = useState(false)
@@ -202,6 +203,16 @@ export const ChatInput = ({ onSendMessage, onStopTask, onPauseTask, onResumeTask
           </div>
         )}
         <div className="flex gap-1 shrink-0">
+          {onToggleLiveKitJarvisMode && (
+              <Button
+                onClick={onToggleLiveKitJarvisMode}
+                size="sm"
+                className="w-8 h-8 p-0 rounded-lg bg-transparent text-slate-500 dark:text-slate-400 border-transparent hover:bg-slate-200 dark:hover:bg-slate-700"
+                title="Toggle LiveKit JARVIS Mode"
+              >
+                LK-J
+              </Button>
+          )}
           {enableVoice && voiceRecognition.isRecognitionSupported() && (
             <Button
               onClick={toggleVoiceInput}

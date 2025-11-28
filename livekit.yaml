@@ -1,0 +1,62 @@
+port: 7880
+bind_addresses:
+  - 0.0.0.0
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 60000
+  use_external_ip: false
+keys:
+  devkey: secret
+logging:
+  level: info
+  pion_level: info
+# turn:
+#   enabled: false
+#   domain: turn.myhost.com
+#   cert_file: ""
+#   key_file: ""
+#   tls_port: 5349
+#   udp_port: 443
+#
+#
+# It is not recommended to run redis on the same instance
+# redis:
+#   address: 127.0.0.1:6379
+#   username: ""
+#   password: ""
+#   db: 0
+#   use_tls: false
+#   max_retries: -1
+#
+#
+# room configuration can be overridden per-room
+room:
+  # name of the room
+  name: testroom
+  # number of seconds to wait before reclaiming a room after the last participant leaves
+  empty_timeout: 300
+  # max number of participants in a room
+  max_participants: 20
+  # default permissions for a participant
+  participant:
+    can_publish: true
+    can_publish_data: true
+    can_subscribe: true
+    hidden: false
+    recorder: false
+#
+#
+# limit the types of codecs that are supported
+# by default, all of opus, vp8, h264, and av1 are enabled
+# codecs:
+#   audio:
+#     - mime: audio/opus
+#       fmtp_line: ""
+#   video:
+#     - mime: video/vp8
+#       fmtp_line: ""
+#     - mime: video/h264
+#       fmtp_line: profile-level-id=42e01f;level-asymmetry-allowed=1;packetization-mode=1
+#     - mime: video/av1
+#       fmtp_line: ""
