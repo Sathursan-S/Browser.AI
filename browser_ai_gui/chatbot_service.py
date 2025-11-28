@@ -300,17 +300,20 @@ class ChatbotService:
             
         except Exception as e:
             logger.error(f"Error processing message: {e}")
+            # Sanitize error message to avoid exposing sensitive information
+            safe_error = "connection issue" if "api" in str(e).lower() else "processing error"
+            
             error_messages = {
                 "en": (
-                    f"❌ I apologize, Sir, but I encountered an error: {str(e)}\n\n"
+                    f"❌ I apologize, Sir, but I encountered a {safe_error}.\n\n"
                     "Please try rephrasing your request or check the API configuration."
                 ),
                 "ta": (
-                    f"❌ மன்னிக்கவும், ஒரு பிழை ஏற்பட்டது: {str(e)}\n\n"
+                    f"❌ மன்னிக்கவும், ஒரு {safe_error} ஏற்பட்டது.\n\n"
                     "உங்கள் கோரிக்கையை மீண்டும் சொல்லவும் அல்லது API உள்ளமைவை சரிபார்க்கவும்."
                 ),
                 "si": (
-                    f"❌ සමාවන්න, දෝෂයක් ඇති විය: {str(e)}\n\n"
+                    f"❌ සමාවන්න, {safe_error}ක් ඇති විය.\n\n"
                     "කරුණාකර ඔබේ ඉල්ලීම නැවත පවසන්න හෝ API වින්‍යාසය පරීක්ෂා කරන්න."
                 )
             }

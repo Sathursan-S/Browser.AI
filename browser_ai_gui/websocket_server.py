@@ -853,7 +853,7 @@ class ExtensionWebSocketHandler:
             language = data.get("language", "en")
 
             success = self.chatbot.set_language(session_id, language)
-            
+
             if success:
                 emit(
                     "language_changed",
