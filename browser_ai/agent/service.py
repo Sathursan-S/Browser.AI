@@ -563,10 +563,8 @@ class Agent:
                 memory="Mock memory",
                 next_goal="Complete task",
             )
-            # Create a simple action, e.g., extract_content
-            mock_action = self.ActionModel(
-                **{"extract_content": {"goal": "Extract page content"}}
-            )
+            # Create a simple action, e.g., click
+            mock_action = self.ActionModel(**{"click": {"index": 1}})
             mock_output = self.AgentOutput(
                 current_state=mock_brain, action=[mock_action]
             )
@@ -775,7 +773,9 @@ class Agent:
                 )
 
             # Write latency analysis to CSV
-            self.controller.latency_analyzer.write_to_csv("output/latency_analysis.csv")
+            await self.controller.latency_analyzer.write_to_csv(
+                "output/latency_analysis.csv"
+            )
 
     def _too_many_failures(self) -> bool:
         """Check if we should stop due to too many failures"""
