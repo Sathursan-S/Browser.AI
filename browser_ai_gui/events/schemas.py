@@ -6,6 +6,7 @@ Each event is strongly typed and self-describing.
 """
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, Optional
 
@@ -35,7 +36,7 @@ class EventSeverity(Enum):
 class BaseEvent:
     """
     Base class for all structured events
-    
+
     All events inherit from this base and add their own specific fields.
     This ensures consistency and enables generic event handling.
     """
@@ -50,7 +51,7 @@ class BaseEvent:
     # Contextual information
     session_id: Optional[str] = None
     task_id: Optional[str] = None
-    
+
     # Optional metadata
     metadata: Dict[str, Any] = field(default_factory=dict)
 

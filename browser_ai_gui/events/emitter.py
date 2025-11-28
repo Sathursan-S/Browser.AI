@@ -12,7 +12,7 @@ Implements the event emitter following SOLID principles:
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Callable, Dict, Optional, Set
+from typing import Callable, Dict, List, Optional, Set
 
 from .schemas import BaseEvent, EventCategory
 
@@ -20,7 +20,7 @@ from .schemas import BaseEvent, EventCategory
 class IEventEmitter(ABC):
     """
     Interface for event emitters
-    
+
     Defines the contract for emitting and subscribing to events.
     Implementations can vary in how they handle event delivery.
     """
@@ -29,7 +29,7 @@ class IEventEmitter(ABC):
     def emit(self, event: BaseEvent) -> None:
         """
         Emit an event to all subscribers
-        
+
         Args:
             event: The event to emit
         """
@@ -41,11 +41,11 @@ class IEventEmitter(ABC):
     ) -> str:
         """
         Subscribe to events
-        
+
         Args:
             callback: Function to call when events are emitted
             event_filter: Optional event type filter (e.g., "agent.start")
-            
+
         Returns:
             Subscription ID for later unsubscription
         """
@@ -55,10 +55,10 @@ class IEventEmitter(ABC):
     def unsubscribe(self, subscription_id: str) -> bool:
         """
         Unsubscribe from events
-        
+
         Args:
             subscription_id: ID returned from subscribe()
-            
+
         Returns:
             True if unsubscribed successfully, False otherwise
         """
@@ -70,11 +70,11 @@ class IEventEmitter(ABC):
     ) -> str:
         """
         Subscribe to all events in a category
-        
+
         Args:
             callback: Function to call when events are emitted
             category: Event category to subscribe to
-            
+
         Returns:
             Subscription ID for later unsubscription
         """
@@ -84,7 +84,7 @@ class IEventEmitter(ABC):
 class EventEmitter(IEventEmitter):
     """
     Default implementation of IEventEmitter
-    
+
     Provides in-memory event emission with filtering capabilities.
     Thread-safe for concurrent access.
     """
@@ -92,13 +92,13 @@ class EventEmitter(IEventEmitter):
     def __init__(self):
         # Track all subscriptions
         self._subscriptions: Dict[str, Dict] = {}
-        
+
         # Index subscriptions by event type for fast lookup
         self._event_type_index: Dict[str, Set[str]] = {}
-        
+
         # Index subscriptions by category for fast lookup
         self._category_index: Dict[EventCategory, Set[str]] = {}
-        
+
         # Track all subscribers (no filter)
         self._global_subscribers: Set[str] = set()
 

@@ -37,7 +37,7 @@ from flask_socketio import SocketIO, emit
 
 from browser_ai.agent.views import AgentHistoryList
 
-from .chatbot_service import ChatbotService
+from .chatbot_service import ChatbotIntent, ChatbotService, ConversationMessage
 from .config import ConfigManager
 from .event_adapter import EventAdapter, EventType, LogEvent, LogLevel
 from .events import EventEmitter, EventTransport
@@ -79,35 +79,21 @@ class ExtensionTaskManager:
         self._finalize_lock = threading.Lock()
         self.browser = None
         self.cdp_endpoint = None
+        self.agent_id = None
+        self.session_id = str(uuid.uuid4())  # Generate session ID
 
-        # Initialize structured event system
-        self.event_emitter = EventEmitter()
-        self.event_transport = EventTransport(
-            socketio=socketio, namespace="/extension", event_name="structured_event"
-        )
-        self.event_bridge = EventBridge(self.event_emitter, self.event_transport)
-        self.event_transport.connect()
-
-        # Generate session ID for tracking related events
-        self.session_id = str(uuid.uuid4())
-        self.agent_id: Optional[str] = None
-
-        # Stuck detection
-        self.stuck_detector = StuckDetector(StuckDetectionConfig(max_time_without_progress=30.0,
+        # Initialize stuck detector
+        self.stuck_detector = StuckDetector(
+            StuckDetectionConfig(
+                max_time_without_progress=30.0,
                 stuck_action_threshold=3,
-                action_history_size=5,))
+                action_history_size=5,
+            )
+        )
+
+        # Initialize user help attributes
         self.awaiting_user_help = False
         self.user_help_response = None
-
-        # Stuck detection
-        self.stuck_detector = StuckDetector(StuckDetectionConfig())
-        self.awaiting_user_help = False
-        self.user_help_response: Optional[str] = None
-
-        # Stuck detection
-        self.stuck_detector = StuckDetector(StuckDetectionConfig())
-        self.awaiting_user_help = False
-        self.user_help_response: Optional[str] = None
 
     def register_thread(self, thread: threading.Thread) -> None:
         """Register the thread running the agent so we can join/track it."""
@@ -135,7 +121,7 @@ class ExtensionTaskManager:
             )
 
             self.browser = Browser(config=browser_config)
-            
+
             # Generate agent ID
             self.agent_id = str(uuid.uuid4())
 
@@ -159,7 +145,7 @@ class ExtensionTaskManager:
             self.current_task = task_description
             self.is_running = True
             self.is_paused = False  # Reset pause state when starting new task
-            
+
             # Emit structured agent start event
             event = self.event_bridge.create_agent_start_event(
                 task_description=task_description,
@@ -173,13 +159,16 @@ class ExtensionTaskManager:
                 },
             )
             self.event_bridge.emit_structured_event(event)
-
             # Emit custom event for backward compatibility
             self.event_adapter.emit_custom_event(
                 EventType.AGENT_START,
                 f"Starting task: {task_description}",
                 LogLevel.INFO,
-                {"task": task_description, "cdp_endpoint": cdp_endpoint, "agent_id": self.agent_id},
+                {
+                    "task": task_description,
+                    "cdp_endpoint": cdp_endpoint,
+                    "agent_id": self.agent_id,
+                },
             )
 
             return create_action_result(True, message="Task started successfully")
@@ -187,7 +176,7 @@ class ExtensionTaskManager:
         except Exception as e:
             logger.error(f"Failed to start task with CDP: {str(e)}", exc_info=True)
             self.is_running = False
-            
+
             # Emit structured error event
             if self.agent_id:
                 error_event = self.event_bridge.create_agent_error_event(
@@ -230,7 +219,7 @@ class ExtensionTaskManager:
 
             self.browser = Browser(config=browser_config)
             self.cdp_endpoint = "http://localhost:9222"
-            
+
             # Generate agent ID
             self.agent_id = str(uuid.uuid4())
 
@@ -250,7 +239,7 @@ class ExtensionTaskManager:
             self.current_task = task_description
             self.is_running = True
             self.is_paused = False  # Reset pause state when starting new task
-            
+
             # Emit structured agent start event
             event = self.event_bridge.create_agent_start_event(
                 task_description=task_description,
@@ -264,13 +253,16 @@ class ExtensionTaskManager:
                 },
             )
             self.event_bridge.emit_structured_event(event)
-
             # Emit custom event for backward compatibility
             self.event_adapter.emit_custom_event(
                 EventType.AGENT_START,
                 f"Starting task: {task_description}",
                 LogLevel.INFO,
-                {"task": task_description, "mode": "extension", "agent_id": self.agent_id},
+                {
+                    "task": task_description,
+                    "mode": "extension",
+                    "agent_id": self.agent_id,
+                },
             )
 
             return create_action_result(True, message="Task started successfully")
@@ -278,7 +270,6 @@ class ExtensionTaskManager:
         except Exception as e:
             logger.error(f"Failed to start task: {str(e)}", exc_info=True)
             self.is_running = False
-            
             # Emit structured error event
             if self.agent_id:
                 error_event = self.event_bridge.create_agent_error_event(
@@ -290,7 +281,6 @@ class ExtensionTaskManager:
                     recoverable=False,
                 )
                 self.event_bridge.emit_structured_event(error_event)
-            
             # Emit custom event to indicate failure
             self.event_adapter.emit_custom_event(
                 EventType.AGENT_ERROR,
@@ -380,7 +370,7 @@ class ExtensionTaskManager:
                 result_str = str(history)
             except Exception:
                 success = False
-        
+
         # Emit structured agent complete event
         if self.agent_id:
             complete_event = self.event_bridge.create_agent_complete_event(
@@ -414,13 +404,12 @@ class ExtensionTaskManager:
         # Also publish via event adapter for internal logging
         try:
             if success:
-                print("Task completed successfully")
-                # self.event_adapter.emit_custom_event(
-                #     EventType.AGENT_COMPLETE,
-                #     "Task completed successfully",
-                #     LogLevel.INFO,
-                #     {"task": self.current_task, "agent_id": self.agent_id},
-                # )
+                self.event_adapter.emit_custom_event(
+                    EventType.AGENT_COMPLETE,
+                    "Task completed successfully",
+                    LogLevel.INFO,
+                    {"task": self.current_task, "agent_id": self.agent_id},
+                )
             else:
                 self.event_adapter.emit_custom_event(
                     EventType.AGENT_ERROR,
@@ -440,6 +429,8 @@ class ExtensionTaskManager:
 
         # Clear current task and agent
         self.current_task = None
+        self.task_thread = None
+        self.agent_id = None
         self.current_agent = None
 
         # Clear finalized flag for next task
@@ -604,9 +595,8 @@ class ExtensionTaskManager:
     def _force_cleanup_browser_processes(self):
         """Force cleanup of any remaining browser processes"""
         try:
-            import os
-
             import psutil
+            import os
 
             current_process = psutil.Process(os.getpid())
             children = current_process.children(recursive=True)
