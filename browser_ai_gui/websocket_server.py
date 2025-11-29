@@ -2,28 +2,9 @@
 WebSocket Server for Browser.AI Extension
 
 Provides WebSocket endpoints for Chrome extension to communicate with Browser.AI agent
-and control t            self.browser = Browser(config=browser_config)
+and control browser automation tasks.
 
-            # Reset stuck detector for new task
-            self.stuck_detector.reset()
-
-            # Create agent
-            self.current_agent = Agent(
-                task=task_description,
-                llm=llm,
-                browser=self.browser,
-                use_vision=self.config_manager.agent_config.use_vision,
-                max_failures=self.config_manager.agent_config.max_failures,
-                retry_delay=self.config_manager.agent_config.retry_delay,
-                generate_gif=False,  # Disable GIF generation for extension
-                validate_output=self.config_manager.agent_config.validate_output,
-                register_done_callback=self._on_agent_done,
-                register_new_step_callback=self._on_agent_step,
-            )
-
-            self.current_task = task_description
-            self.is_running = True
-            self.is_paused = False  # Reset pause state when starting new task.
+Now supports Pipecat for real-time voice conversations.
 """
 
 import asyncio
@@ -34,10 +15,11 @@ from typing import Optional, Set
 from flask import Flask
 from flask_socketio import SocketIO, emit
 
+from browser_ai.agent.views import AgentHistoryList
+
+from .chatbot_service import ChatbotService
 from .config import ConfigManager
 from .event_adapter import EventAdapter, EventType, LogEvent, LogLevel
-from .chatbot_service import ChatbotService, ConversationMessage, ChatbotIntent
-from .stuck_detector import StuckDetector, StuckDetectionConfig
 from .protocol import (
     ActionResult,
     StartTaskPayload,
@@ -45,7 +27,19 @@ from .protocol import (
     create_action_result,
     create_task_status,
 )
-from browser_ai.agent.views import AgentHistoryList
+from .stuck_detector import StuckDetectionConfig, StuckDetector
+
+# Optional Pipecat support
+try:
+    from .services.pipecat_voice_service import (
+        PIPECAT_AVAILABLE,
+        PipecatVoiceService,
+        create_pipecat_voice_service,
+    )
+except ImportError:
+    PIPECAT_AVAILABLE = False
+    PipecatVoiceService = None
+    create_pipecat_voice_service = None
 
 logger = logging.getLogger(__name__)
 
@@ -558,6 +552,20 @@ class ExtensionWebSocketHandler:
         self.chatbot = ChatbotService(api_key=api_key)
         logger.info("Chatbot service initialized for conversational task clarification")
 
+        # Initialize Pipecat voice service (optional)
+        self.pipecat_service = None
+        if PIPECAT_AVAILABLE and create_pipecat_voice_service:
+            try:
+                self.pipecat_service = create_pipecat_voice_service(
+                    api_key=api_key,
+                    language="en",
+                    enable_vad=True,
+                )
+                logger.info("Pipecat voice service initialized for real-time voice conversations")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Pipecat: {e}")
+                self.pipecat_service = None
+
         # Setup WebSocket event handlers
         self._setup_handlers()
 
@@ -694,6 +702,7 @@ class ExtensionWebSocketHandler:
 
             session_id = request.sid
             user_message = data.get("message", "").strip()
+            language = data.get("language")  # Optional language parameter
 
             if not user_message:
                 emit(
@@ -702,13 +711,14 @@ class ExtensionWebSocketHandler:
                         "role": "assistant",
                         "content": "Please provide a message.",
                         "intent": None,
+                        "language": language or "en",
                     },
                 )
                 return
 
-            # Process message through chatbot
+            # Process message through chatbot with language support
             response_msg, intent = self.chatbot.process_message(
-                session_id, user_message
+                session_id, user_message, language
             )
 
             # Prepare response
@@ -716,6 +726,7 @@ class ExtensionWebSocketHandler:
                 "role": response_msg.role,
                 "content": response_msg.content,
                 "intent": None,
+                "language": response_msg.language,
             }
 
             # If intent is ready, include it
@@ -726,12 +737,12 @@ class ExtensionWebSocketHandler:
                     "confidence": intent.confidence,
                 }
 
-                logger.info(f"Chatbot clarified intent: {intent.task_description}")
+                logger.info(f"JARVIS clarified intent: {intent.task_description}")
 
                 # Emit event indicating task is ready to start
                 self.event_adapter.emit_custom_event(
                     EventType.AGENT_START,
-                    f"Task clarified through conversation: {intent.task_description}",
+                    f"Task clarified through JARVIS conversation: {intent.task_description}",
                     LogLevel.INFO,
                     {"task": intent.task_description},
                 )
@@ -823,16 +834,178 @@ class ExtensionWebSocketHandler:
             )
 
         @self.socketio.on("reset_conversation", namespace="/extension")
-        def handle_reset_conversation():
-            """Handle conversation reset request"""
+        def handle_reset_conversation(data=None):
+            """Handle conversation reset request with optional language"""
             from flask import request
 
             session_id = request.sid
-            greeting = self.chatbot.reset_conversation(session_id)
+            language = data.get("language") if data else None
+            greeting = self.chatbot.reset_conversation(session_id, language)
 
             emit(
                 "conversation_reset",
-                {"role": greeting.role, "content": greeting.content},
+                {
+                    "role": greeting.role,
+                    "content": greeting.content,
+                    "language": greeting.language,
+                },
+            )
+
+        @self.socketio.on("set_language", namespace="/extension")
+        def handle_set_language(data):
+            """Handle language change request"""
+            from flask import request
+
+            session_id = request.sid
+            language = data.get("language", "en")
+
+            success = self.chatbot.set_language(session_id, language)
+
+            if success:
+                emit(
+                    "language_changed",
+                    {
+                        "language": language,
+                        "display_name": self.chatbot.SUPPORTED_LANGUAGES.get(language, "Unknown"),
+                    },
+                )
+                logger.info(f"Session {session_id} language changed to: {language}")
+            else:
+                emit(
+                    "error",
+                    {"message": f"Unsupported language: {language}"},
+                )
+
+        @self.socketio.on("get_languages", namespace="/extension")
+        def handle_get_languages():
+            """Return list of supported languages"""
+            languages = self.chatbot.get_supported_languages()
+            # Include Pipecat availability info
+            emit(
+                "supported_languages",
+                {
+                    "languages": languages,
+                    "pipecat_available": self.pipecat_service is not None,
+                },
+            )
+
+        # Pipecat voice-specific handlers
+        @self.socketio.on("start_voice_session", namespace="/extension")
+        def handle_start_voice_session(data):
+            """Start a Pipecat voice conversation session"""
+
+            if not self.pipecat_service:
+                emit(
+                    "voice_session_error",
+                    {
+                        "error": "Pipecat not available",
+                        "message": "Voice conversation requires Pipecat. Install with: pip install pipecat-ai[google]",
+                    },
+                )
+                return
+
+            language = data.get("language", "en")
+
+            def run_async():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    session_id = loop.run_until_complete(
+                        self.pipecat_service.create_session(language=language)
+                    )
+                    return session_id
+                finally:
+                    loop.close()
+
+            try:
+                import threading
+
+                result = {"session_id": None}
+
+                def task():
+                    result["session_id"] = run_async()
+
+                thread = threading.Thread(target=task)
+                thread.start()
+                thread.join(timeout=5)
+
+                if result["session_id"]:
+                    emit(
+                        "voice_session_started",
+                        {
+                            "session_id": result["session_id"],
+                            "language": language,
+                            "message": "Voice session ready. Start speaking!",
+                        },
+                    )
+                    logger.info(f"Voice session started: {result['session_id']}")
+                else:
+                    emit("voice_session_error", {"error": "Failed to create session"})
+            except Exception as e:
+                logger.error(f"Error starting voice session: {e}")
+                emit("voice_session_error", {"error": str(e)})
+
+        @self.socketio.on("voice_audio", namespace="/extension")
+        def handle_voice_audio(data):
+            """Handle incoming voice audio data"""
+            if not self.pipecat_service:
+                return
+
+            session_id = data.get("session_id")
+            audio_data = data.get("audio")  # Base64 encoded audio
+
+            if not session_id or not audio_data:
+                return
+
+            # Note: In a full implementation, audio would be processed through
+            # the Pipecat pipeline. For now, we acknowledge receipt.
+            emit("voice_audio_received", {"session_id": session_id})
+
+        @self.socketio.on("end_voice_session", namespace="/extension")
+        def handle_end_voice_session(data):
+            """End a Pipecat voice conversation session"""
+            if not self.pipecat_service:
+                return
+
+            session_id = data.get("session_id")
+            if not session_id:
+                return
+
+            def run_async():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    return loop.run_until_complete(
+                        self.pipecat_service.end_session(session_id)
+                    )
+                finally:
+                    loop.close()
+
+            try:
+                import threading
+
+                thread = threading.Thread(target=run_async)
+                thread.start()
+                thread.join(timeout=5)
+
+                emit("voice_session_ended", {"session_id": session_id})
+                logger.info(f"Voice session ended: {session_id}")
+            except Exception as e:
+                logger.error(f"Error ending voice session: {e}")
+
+        @self.socketio.on("get_voice_status", namespace="/extension")
+        def handle_get_voice_status():
+            """Get Pipecat voice service status"""
+            emit(
+                "voice_status",
+                {
+                    "pipecat_available": self.pipecat_service is not None,
+                    "supported_languages": (
+                        self.pipecat_service.get_supported_languages()
+                        if self.pipecat_service
+                        else {}
+                    ),
+                },
             )
 
     def broadcast_event(self, event: LogEvent):

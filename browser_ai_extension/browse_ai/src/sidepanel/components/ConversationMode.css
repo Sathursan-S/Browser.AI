@@ -20,6 +20,108 @@
   pointer-events: none;
 }
 
+/* Language Selector */
+.language-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 10;
+}
+
+.language-label {
+  font-size: 14px;
+  margin-right: 4px;
+}
+
+.language-btn {
+  padding: 4px 12px;
+  border: 1px solid rgba(100, 255, 218, 0.3);
+  border-radius: 16px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.language-btn:hover {
+  background: rgba(100, 255, 218, 0.1);
+  border-color: rgba(100, 255, 218, 0.5);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.language-btn.active {
+  background: linear-gradient(135deg, rgba(100, 255, 218, 0.3), rgba(0, 212, 255, 0.3));
+  border-color: rgba(100, 255, 218, 0.6);
+  color: #fff;
+  font-weight: 500;
+}
+
+/* Pipecat Toggle */
+.pipecat-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 165, 0, 0.4);
+  border-radius: 16px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-left: auto;
+}
+
+.pipecat-toggle:hover {
+  background: rgba(255, 165, 0, 0.15);
+  border-color: rgba(255, 165, 0, 0.6);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.pipecat-toggle.active {
+  background: linear-gradient(135deg, rgba(255, 165, 0, 0.4), rgba(255, 100, 0, 0.3));
+  border-color: rgba(255, 165, 0, 0.8);
+  color: #fff;
+  font-weight: 500;
+}
+
+.pipecat-toggle svg {
+  flex-shrink: 0;
+}
+
+/* Pipecat Status Indicator */
+.pipecat-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, rgba(255, 165, 0, 0.2), rgba(255, 100, 0, 0.15));
+  border-bottom: 1px solid rgba(255, 165, 0, 0.3);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.pipecat-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 165, 0, 0.5);
+}
+
+.pipecat-indicator.active {
+  background: #ff9800;
+  animation: pipecat-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pipecat-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(255, 152, 0, 0.7); }
+  50% { opacity: 0.8; box-shadow: 0 0 0 6px rgba(255, 152, 0, 0); }
+}
+
 .messages-container {
   flex: 1;
   overflow-y: auto;
