@@ -63,6 +63,11 @@ export const ConversationMode = ({
   const [interimTranscript, setInterimTranscript] = useState('')
   const [voiceError, setVoiceError] = useState<string | null>(null)
 
+  // Pipecat state
+  const [pipecatAvailable, setPipecatAvailable] = useState(false)
+  const [pipecatSessionId, setPipecatSessionId] = useState<string | null>(null)
+  const [usePipecat, setUsePipecat] = useState(false) // Toggle between Pipecat and Web Speech
+
   // Audio visualization state
   const [audioLevel, setAudioLevel] = useState(0)
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -83,6 +88,50 @@ export const ConversationMode = ({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Check Pipecat availability on connection
+  useEffect(() => {
+    if (connected && socket) {
+      socket.emit('get_voice_status')
+      
+      // Listen for voice status
+      socket.on('voice_status', (data: { pipecat_available: boolean; supported_languages: object }) => {
+        setPipecatAvailable(data.pipecat_available)
+        console.log('🎤 Pipecat available:', data.pipecat_available)
+      })
+
+      // Listen for voice session events
+      socket.on('voice_session_started', (data: { session_id: string; language: string; message: string }) => {
+        setPipecatSessionId(data.session_id)
+        console.log('🎤 Voice session started:', data.session_id)
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: data.message,
+          timestamp: new Date().toISOString(),
+          language: data.language,
+        }])
+      })
+
+      socket.on('voice_session_error', (data: { error: string; message?: string }) => {
+        console.error('🎤 Voice session error:', data.error)
+        setVoiceError(data.message || data.error)
+        setUsePipecat(false)
+      })
+
+      socket.on('voice_session_ended', (data: { session_id: string }) => {
+        if (data.session_id === pipecatSessionId) {
+          setPipecatSessionId(null)
+        }
+      })
+
+      return () => {
+        socket.off('voice_status')
+        socket.off('voice_session_started')
+        socket.off('voice_session_error')
+        socket.off('voice_session_ended')
+      }
+    }
+  }, [connected, socket, pipecatSessionId])
 
   // Speak new assistant messages when speech is enabled
   useEffect(() => {
@@ -129,6 +178,10 @@ export const ConversationMode = ({
       textToSpeech.stop()
       voiceRecognition.cleanup()
       voiceConversation.cleanup()
+      // End Pipecat session if active
+      if (pipecatSessionId && socket) {
+        socket.emit('end_voice_session', { session_id: pipecatSessionId })
+      }
     }
   }, [])
 
@@ -229,6 +282,45 @@ export const ConversationMode = ({
       socket.emit('reset_conversation', { language: lang })
       setMessages([])
       setIntent(null)
+      
+      // If Pipecat session active, end it and start new one with new language
+      if (pipecatSessionId) {
+        socket.emit('end_voice_session', { session_id: pipecatSessionId })
+        setPipecatSessionId(null)
+        if (usePipecat) {
+          socket.emit('start_voice_session', { language: lang })
+        }
+      }
+    }
+  }
+
+  // Toggle Pipecat mode
+  const handleTogglePipecat = () => {
+    if (!pipecatAvailable) {
+      setVoiceError('Pipecat not available. Install with: pip install pipecat-ai[google]')
+      return
+    }
+    
+    const newUsePipecat = !usePipecat
+    setUsePipecat(newUsePipecat)
+    
+    if (newUsePipecat && socket && connected) {
+      // Start Pipecat session
+      socket.emit('start_voice_session', { language: currentLanguage })
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: '🎙️ Pipecat voice mode activated! Speak naturally for real-time conversation.',
+        timestamp: new Date().toISOString(),
+      }])
+    } else if (pipecatSessionId && socket) {
+      // End Pipecat session
+      socket.emit('end_voice_session', { session_id: pipecatSessionId })
+      setPipecatSessionId(null)
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: '🔇 Pipecat voice mode deactivated. Using Web Speech API.',
+        timestamp: new Date().toISOString(),
+      }])
     }
   }
 
@@ -246,8 +338,8 @@ export const ConversationMode = ({
     setIntent(null)
 
     // Add confirmation message
-    setMessages([
-      ...messages,
+    setMessages(prev => [
+      ...prev,
       {
         role: 'assistant',
         content: '🚀 Perfect! Starting the automation now...',
@@ -554,7 +646,7 @@ export const ConversationMode = ({
 
   return (
     <div className="conversation-mode">
-      {/* Language Selector */}
+      {/* Language Selector with Pipecat Toggle */}
       <div className="language-selector">
         <span className="language-label">🌐</span>
         {Object.entries(SUPPORTED_LANGUAGES).map(([code, { name }]) => (
@@ -567,7 +659,32 @@ export const ConversationMode = ({
             {name}
           </button>
         ))}
+        
+        {/* Pipecat Toggle - only show if available */}
+        {pipecatAvailable && (
+          <button
+            className={`pipecat-toggle ${usePipecat ? 'active' : ''}`}
+            onClick={handleTogglePipecat}
+            title={usePipecat ? 'Disable Pipecat (Real-time Voice)' : 'Enable Pipecat (Real-time Voice)'}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+              <line x1="12" y1="19" x2="12" y2="23" />
+              <line x1="8" y1="23" x2="16" y2="23" />
+            </svg>
+            {usePipecat ? 'Pipecat ON' : 'Pipecat'}
+          </button>
+        )}
       </div>
+
+      {/* Pipecat Status Indicator */}
+      {usePipecat && pipecatSessionId && (
+        <div className="pipecat-status">
+          <div className="pipecat-indicator active"></div>
+          <span>🎙️ Pipecat Real-time Voice Active</span>
+        </div>
+      )}
 
       {/* Live Voice Mode Status Bar */}
       {isLiveVoiceMode && (

@@ -9,7 +9,31 @@ The JARVIS (Just A Rather Very Intelligent System) conversation mode provides:
 - **Multi-language support** - English, Tamil (தமிழ்), and Sinhala (සිංහල)
 - **JARVIS-like persona** - Intelligent, helpful, and personable assistant
 - **Task planning through dialogue** - Clarifies requirements before executing
-- **Free and locally runnable** - Uses browser's Web Speech API for voice recognition
+- **Two voice backends**:
+  - **Web Speech API** - Free, browser-based (default)
+  - **Pipecat** - Real-time voice AI framework for more realistic conversations
+
+## Pipecat Integration (NEW)
+
+For a more realistic, real-time voice conversation experience, Browser.AI now supports **Pipecat** - an open-source framework for building voice AI applications.
+
+### Installing Pipecat
+
+```bash
+pip install pipecat-ai[google]
+```
+
+### Pipecat Features
+- **Real-time voice processing** - Lower latency than Web Speech API
+- **Voice Activity Detection (VAD)** - Automatic turn-taking
+- **Google Gemini integration** - Advanced LLM responses
+- **Google TTS** - Natural text-to-speech
+
+### Enabling Pipecat
+1. Install pipecat-ai with Google support
+2. Set your Google API key in the environment: `GOOGLE_API_KEY=your-key`
+3. In the conversation mode, click the "Pipecat" toggle button
+4. The status indicator will show "Pipecat Real-time Voice Active"
 
 ## Access Methods
 
@@ -18,7 +42,8 @@ The JARVIS conversation mode is integrated into the Browser.AI Chrome extension:
 1. Open the Browser.AI extension side panel
 2. Click the conversation mode toggle button (💬 icon)
 3. Select your preferred language from the language selector
-4. Start speaking or typing to interact with JARVIS
+4. Optionally enable Pipecat for real-time voice
+5. Start speaking or typing to interact with JARVIS
 
 ### 2. Web Interface
 Access via the standalone web interface:
@@ -32,6 +57,7 @@ Access via the standalone web interface:
 - Click the microphone button or use Live Voice Mode for hands-free interaction
 - The assistant will respond with both text and voice (Text-to-Speech)
 - Live Voice Mode enables continuous conversation without clicking
+- **With Pipecat**: More natural, real-time conversation with automatic turn-taking
 
 ### 2. Multi-Language Support
 

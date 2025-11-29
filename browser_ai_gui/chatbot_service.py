@@ -5,6 +5,8 @@ Uses Gemini to have a conversation with the user to clarify their intent
 before starting browser automation tasks.
 
 Features a JARVIS-inspired persona with multi-language support (English, Tamil, Sinhala).
+
+Now supports Pipecat for more realistic real-time voice conversations.
 """
 
 import logging
@@ -14,6 +16,18 @@ from typing import Dict, List, Optional, Tuple
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel
+
+# Optional Pipecat support
+try:
+    from .services.pipecat_voice_service import (
+        PIPECAT_AVAILABLE,
+        PipecatVoiceService,
+        create_pipecat_voice_service,
+    )
+except ImportError:
+    PIPECAT_AVAILABLE = False
+    PipecatVoiceService = None
+    create_pipecat_voice_service = None
 
 logger = logging.getLogger(__name__)
 
