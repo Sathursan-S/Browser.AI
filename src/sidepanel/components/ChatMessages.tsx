@@ -16,9 +16,9 @@ interface ChatMessagesProps {
 const LoadingDots = () => {
   return (
     <div className="flex space-x-1">
-      <div className="w-2 h-2 bg-[#4f5dff]/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-      <div className="w-2 h-2 bg-[#4f5dff]/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-      <div className="w-2 h-2 bg-[#4f5dff]/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+      <div className="w-2 h-2 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+      <div className="w-2 h-2 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+      <div className="w-2 h-2 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
     </div>
   )
 }
@@ -35,7 +35,7 @@ const TypingIndicator = ({ texts }: { texts: string[] }) => {
   }, [texts])
 
   return (
-    <div className="flex items-center space-x-3 text-[#5c6394]">
+    <div className="flex items-center space-x-3 text-white/70">
       <LoadingDots />
       <span className="text-sm animate-pulse">{texts[currentTextIndex]}</span>
     </div>
@@ -101,13 +101,13 @@ export const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isTyping =
       className="chat-scroll h-full overflow-y-auto overflow-x-hidden p-4 space-y-4"
       style={{
         scrollbarWidth: 'thin',
-        scrollbarColor: 'rgba(79, 93, 255, 0.4) rgba(232, 235, 255, 0.6)',
+        scrollbarColor: 'rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.1)',
       }}
     >
         {filteredMessages.length === 0 && !isTyping && (
-          <div className="text-center text-[#7a80a8] py-8">
+          <div className="text-center text-white/50 py-8">
             <div className="mb-4">
-              <svg className="w-12 h-12 mx-auto text-[#c7cbf8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-12 h-12 mx-auto text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
             </div>
@@ -127,10 +127,10 @@ export const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isTyping =
           <div
             className={`max-w-[85%] min-w-0 px-4 py-3 rounded-2xl transition-all duration-300 hover:shadow-lg ${
               message.type === 'user'
-                ? 'bg-[#4f5dff] text-white shadow-blue-500/30'
+                ? 'bg-blue-600 text-white shadow-blue-600/20'
                 : message.type === 'system'
-                ? 'bg-[#fde7d4] text-[#8a4b2f] border border-[#f9d3b2] shadow-[#f9d3b2]/20'
-                : 'bg-[#eef1ff] text-[#434976] border border-[#dfe3ff] shadow-[#bfc6ff]/30'
+                ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30 shadow-orange-500/10'
+                : 'bg-white/10 text-white border border-white/20 shadow-white/10'
             }`}
           >
             {message.isLoading ? (
@@ -142,7 +142,7 @@ export const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isTyping =
                 </p>
               </div>
             )}
-            <p className="text-xs opacity-70 mt-2 flex-shrink-0">
+            <p className="text-xs opacity-60 mt-2 flex-shrink-0">
               {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </p>
           </div>
@@ -151,7 +151,7 @@ export const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, isTyping =
 
       {isTyping && (
         <div className="flex justify-start animate-fadeInUp">
-          <div className="bg-[#eef1ff] text-[#4b5182] border border-[#dfe3ff] px-4 py-3 rounded-2xl shadow-lg">
+          <div className="bg-white/10 text-white border border-white/20 px-4 py-3 rounded-2xl shadow-lg">
             <TypingIndicator texts={loadingTexts} />
           </div>
         </div>

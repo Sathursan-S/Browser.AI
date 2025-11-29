@@ -9,6 +9,7 @@ export default defineConfig(({ mode }) => {
   const isProduction = mode === 'production'
 
   return {
+    base: './', // Use relative paths for assets
     build: {
       emptyOutDir: true,
       outDir: 'build',
