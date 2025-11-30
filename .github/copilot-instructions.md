@@ -110,6 +110,7 @@ async def custom_action(params: YourModel):
 - `examples/features/` - Real-world usage patterns and advanced features
 - `launch.py` - Smart dependency management and launcher patterns
 - `browser_ai_gui/main.py` - GUI application entry points and argument parsing
+- `docs/` - Documentation and technical specifications (keep all docs and md files here within relevent folders)
 
 ## Memory and Performance Notes
 

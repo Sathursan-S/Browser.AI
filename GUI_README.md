@@ -1,11 +1,12 @@
 # 🤖 Browser.AI GUI Components
 
-Professional chat-based interfaces for Browser.AI automation, featuring both web and desktop applications that provide a GitHub Copilot-style experience for web automation tasks.
+Professional chat-based interfaces for Browser.AI automation, featuring web interface, desktop application, and Chrome extension that provide a GitHub Copilot-style experience for web automation tasks.
 
 ## ✨ Features
 
 - **🌐 Web Interface**: Modern chat-style web application with real-time updates
 - **🖥️ Desktop GUI**: Native Tkinter application mimicking VS Code's Copilot chat
+- **🧩 Chrome Extension**: Side panel extension for browser automation with live logs
 - **⚙️ Configuration Management**: Easy setup for multiple LLM providers
 - **📊 Real-time Monitoring**: Live task progress and log streaming  
 - **🔄 Task Control**: Start, pause, resume, and stop automation tasks
@@ -33,6 +34,10 @@ python launch.py web
 # 🖥️ Desktop GUI
 python launch.py desktop
 
+# 🧩 Chrome Extension (see browser_ai_extension/QUICK_START.md)
+python -m browser_ai_gui.main web --port 5000
+# Then load the extension from browser_ai_extension/browse_ai/build/
+
 # 🌐 Web Interface on custom port
 python launch.py web --port 8080
 ```
@@ -41,10 +46,31 @@ The launcher will automatically install missing dependencies.
 
 ### First Time Setup
 
-1. **Choose your interface** (web or desktop)
+1. **Choose your interface** (web, desktop, or extension)
 2. **Configure LLM settings** in the settings panel
 3. **Add your API key** for your chosen provider
 4. **Start chatting** with your AI automation assistant!
+
+## 🧩 Chrome Extension
+
+The Chrome extension provides a side panel interface for browser automation directly in your browser.
+
+**Key Features:**
+- Chat interface in browser side panel
+- Live log streaming with animations
+- Direct browser control via CDP
+- WebSocket connection to Python server
+- Real-time task progress monitoring
+
+**Installation:**
+See [`browser_ai_extension/QUICK_START.md`](browser_ai_extension/QUICK_START.md) for detailed instructions.
+
+Quick steps:
+```bash
+cd browser_ai_extension/browse_ai
+npm install && npm run build
+# Then load the build/ folder in Chrome (chrome://extensions/)
+```
 
 ## 🎯 Sample Tasks
 
