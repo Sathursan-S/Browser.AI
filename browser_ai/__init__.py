@@ -12,6 +12,7 @@ from browser_ai.browser.browser import BrowserConfig as BrowserConfig
 from browser_ai.browser.context import BrowserContextConfig
 from browser_ai.controller.service import Controller as Controller
 from browser_ai.dom.service import DomService as DomService
+from browser_ai.observability.config import LaminarConfig
 
 __all__ = [
 	'Agent',
@@ -25,3 +26,9 @@ __all__ = [
 	'AgentHistoryList',
 	'BrowserContextConfig',
 ]
+
+# Global configuration instance
+laminar_config = LaminarConfig()
+
+# Auto-initialize from environment on import
+laminar_config.initialize_from_env()

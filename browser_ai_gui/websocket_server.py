@@ -34,10 +34,17 @@ from typing import Optional, Set
 from flask import Flask
 from flask_socketio import SocketIO, emit
 
+from browser_ai.agent.views import AgentHistoryList
+from browser_ai.observability import (
+    ActionAccuracyEvaluator,
+    LatencyEvaluator,
+    MetricsCollector,
+    TaskSuccessEvaluator,
+)
+
+from .chatbot_service import ChatbotIntent, ChatbotService, ConversationMessage
 from .config import ConfigManager
 from .event_adapter import EventAdapter, EventType, LogEvent, LogLevel
-from .chatbot_service import ChatbotService, ConversationMessage, ChatbotIntent
-from .stuck_detector import StuckDetector, StuckDetectionConfig
 from .protocol import (
     ActionResult,
     StartTaskPayload,
@@ -45,7 +52,7 @@ from .protocol import (
     create_action_result,
     create_task_status,
 )
-from browser_ai.agent.views import AgentHistoryList
+from .stuck_detector import StuckDetectionConfig, StuckDetector
 
 logger = logging.getLogger(__name__)
 
@@ -73,11 +80,20 @@ class ExtensionTaskManager:
         self._finalize_lock = threading.Lock()
         self.browser = None
         self.cdp_endpoint = None
+        self.session_id = None
 
         # Stuck detection
         self.stuck_detector = StuckDetector(StuckDetectionConfig())
         self.awaiting_user_help = False
         self.user_help_response: Optional[str] = None
+
+        # Observability components
+        self.metrics_collector = MetricsCollector()
+        self.evaluators = [
+            TaskSuccessEvaluator(),
+            ActionAccuracyEvaluator(),
+            LatencyEvaluator(),
+        ]
 
     def register_thread(self, thread: threading.Thread) -> None:
         """Register the thread running the agent so we can join/track it."""
@@ -126,6 +142,12 @@ class ExtensionTaskManager:
             self.current_task = task_description
             self.is_running = True
             self.is_paused = False  # Reset pause state when starting new task
+
+            # Start observability session
+            import uuid
+
+            self.session_id = str(uuid.uuid4())
+            self.metrics_collector.start_session(task_description, self.session_id)
 
             # Emit custom event
             self.event_adapter.emit_custom_event(
@@ -188,6 +210,12 @@ class ExtensionTaskManager:
             self.current_task = task_description
             self.is_running = True
             self.is_paused = False  # Reset pause state when starting new task
+
+            # Start observability session
+            import uuid
+
+            self.session_id = str(uuid.uuid4())
+            self.metrics_collector.start_session(task_description, self.session_id)
 
             # Emit custom event
             self.event_adapter.emit_custom_event(
@@ -328,6 +356,38 @@ class ExtensionTaskManager:
         except Exception:
             logger.exception("Failed to emit final event via event_adapter")
 
+        # Run automatic evaluations and complete metrics
+        if self.session_id:
+            try:
+                # Complete metrics collection
+                self.metrics_collector.complete_session(self.session_id, success)
+
+                # Run evaluations if we have history
+                if history is not None:
+                    evaluation_results = {}
+                    for evaluator in self.evaluators:
+                        try:
+                            result = await evaluator.evaluate(
+                                self.current_task, history
+                            )
+                            evaluation_results[evaluator.name] = result
+                        except Exception as e:
+                            logger.exception(
+                                f"Failed to run evaluator {evaluator.name}: {e}"
+                            )
+
+                    # Log evaluation summary
+                    if evaluation_results:
+                        overall_score = sum(
+                            r.score for r in evaluation_results.values()
+                        ) / len(evaluation_results)
+                        logger.info(
+                            f"Task evaluation complete. Overall score: {overall_score:.2f}"
+                        )
+
+            except Exception as e:
+                logger.exception(f"Failed to complete observability: {e}")
+
         # Ensure browser closed (best-effort)
         if self.browser:
             try:
@@ -338,6 +398,7 @@ class ExtensionTaskManager:
         # Clear current task and agent
         self.current_task = None
         self.current_agent = None
+        self.session_id = None
 
         # Clear finalized flag for next task
         self._finalized = False
@@ -529,6 +590,25 @@ class ExtensionTaskManager:
                 except RuntimeError:
                     # If no event loop, we can't request help
                     logger.warning("Cannot request help: no event loop available")
+
+        # Record metrics for this step
+        if self.session_id:
+            try:
+                # Record step execution (simplified duration tracking)
+                self.metrics_collector.record_step(
+                    self.session_id, step_num, 1.0
+                )  # Placeholder duration
+
+                # Record actions
+                if hasattr(output, "action") and output.action:
+                    for action_dict in output.action:
+                        for action_name, action_params in action_dict.items():
+                            success = not (hasattr(output, "error") and output.error)
+                            self.metrics_collector.record_action(
+                                self.session_id, action_name, success
+                            )
+            except Exception as e:
+                logger.exception(f"Failed to record metrics for step {step_num}: {e}")
 
 
 class ExtensionWebSocketHandler:

@@ -19,7 +19,7 @@ from langchain_core.messages import (
     HumanMessage,
     SystemMessage,
 )
-from lmnr import observe
+from lmnr import Laminar, observe
 from openai import RateLimitError
 from pydantic import BaseModel, ValidationError
 
@@ -289,7 +289,7 @@ class Agent:
             raise InterruptedError
         return False
 
-    @observe(name="agent.step", ignore_output=True, ignore_input=True)
+    @observe(name="agent.step")
     @time_execution_async("--step")
     async def step(self, step_info: Optional[AgentStepInfo] = None) -> None:
         """Execute one step of the task"""
@@ -299,168 +299,218 @@ class Agent:
         model_output = None
         result: list[ActionResult] = []
 
-        try:
-            start_get_state = time.time()
-            state = await self.browser_context.get_state()
-            end_get_state = time.time()
-            self.controller.latency_analyzer.record(
-                "get_state",
-                start_get_state,
-                end_get_state,
-                self.n_steps,
-                {"task": self.task},
-            )
-
-            self._check_if_stopped_or_paused()
-            self.message_manager.add_state_message(
-                state, self._last_result, step_info, self.use_vision
-            )
-
-            # Run planner at specified intervals if planner is configured
-            if self.planner_llm and self.n_steps % self.planning_interval == 0:
-                start_planner = time.time()
-                plan = await self._run_planner()
-                end_planner = time.time()
-                self.controller.latency_analyzer.record(
-                    "run_planner",
-                    start_planner,
-                    end_planner,
-                    self.n_steps,
-                    {"task": self.task},
-                )
-                # add plan before last state message
-                self.message_manager.add_plan(plan, position=-1)
-
-            input_messages = self.message_manager.get_messages()
-
-            self._check_if_stopped_or_paused()
+        # Create span for entire step with metadata
+        with Laminar.start_as_current_span(
+            name=f"agent.step.{self.n_steps}",
+            input={
+                "task": self.task,
+                "step_number": self.n_steps,
+                "step_info": step_info.model_dump() if step_info else None,
+                "model": self.model_name,
+            },
+        ):
 
             try:
-                start_get_next_action = time.time()
-                model_output = await self.get_next_action(input_messages)
-                end_get_next_action = time.time()
+                start_get_state = time.time()
+                with Laminar.start_as_current_span(
+                    name="agent.get_state",
+                    span_type="DEFAULT",
+                ):
+                    state = await self.browser_context.get_state()
+                    Laminar.set_span_output(
+                        {
+                            "url": state.url,
+                            "title": state.title,
+                            "element_count": len(state.selector_map),
+                            "tabs_count": len(state.tabs),
+                        }
+                    )
+                end_get_state = time.time()
                 self.controller.latency_analyzer.record(
-                    "get_next_action",
-                    start_get_next_action,
-                    end_get_next_action,
+                    "get_state",
+                    start_get_state,
+                    end_get_state,
                     self.n_steps,
                     {"task": self.task},
                 )
 
-                if self.register_new_step_callback:
-                    self.register_new_step_callback(state, model_output, self.n_steps)
+                self._check_if_stopped_or_paused()
+                self.message_manager.add_state_message(
+                    state, self._last_result, step_info, self.use_vision
+                )
 
-                self._save_conversation(input_messages, model_output)
-                self.message_manager._remove_last_state_message()  # we dont want the whole state in the chat history
+                # Run planner at specified intervals if planner is configured
+                if self.planner_llm and self.n_steps % self.planning_interval == 0:
+                    start_planner = time.time()
+                    with Laminar.start_as_current_span(
+                        name="agent.planner",
+                        input={
+                            "step": self.n_steps,
+                            "planner_model": self.planner_model_name,
+                        },
+                        span_type="LLM",
+                    ):
+                        plan = await self._run_planner()
+                        Laminar.set_span_output({"plan": plan})
+                    end_planner = time.time()
+                    self.controller.latency_analyzer.record(
+                        "run_planner",
+                        start_planner,
+                        end_planner,
+                        self.n_steps,
+                        {"task": self.task},
+                    )
+                    # add plan before last state message
+                    self.message_manager.add_plan(plan, position=-1)
+
+                input_messages = self.message_manager.get_messages()
 
                 self._check_if_stopped_or_paused()
 
-                self.message_manager.add_model_output(model_output)
-            except Exception as e:
-                # model call failed, remove last state message from history
-                self.message_manager._remove_last_state_message()
-                raise e
+                try:
+                    start_get_next_action = time.time()
+                    model_output = await self.get_next_action(input_messages)
+                    end_get_next_action = time.time()
+                    self.controller.latency_analyzer.record(
+                        "get_next_action",
+                        start_get_next_action,
+                        end_get_next_action,
+                        self.n_steps,
+                        {"task": self.task},
+                    )
 
-            self.controller.step_number = self.n_steps
-            start_multi_act = time.time()
-            result: list[ActionResult] = await self.controller.multi_act(
-                model_output.action,
-                self.browser_context,
-                page_extraction_llm=self.page_extraction_llm,
-                sensitive_data=self.sensitive_data,
-                check_break_if_paused=lambda: self._check_if_stopped_or_paused(),
-                available_file_paths=self.available_file_paths,
-            )
-            end_multi_act = time.time()
-            self.controller.latency_analyzer.record(
-                "multi_act",
-                start_multi_act,
-                end_multi_act,
-                self.n_steps,
-                {
-                    "task": self.task,
-                    "action_count": len(model_output.action) if model_output else 0,
-                },
-            )
-            self._last_result = result
-            self.controller.latency_analyzer.record(
-                "step", step_start_time, time.time(), self.n_steps, {"task": self.task}
-            )
+                    if self.register_new_step_callback:
+                        self.register_new_step_callback(
+                            state, model_output, self.n_steps
+                        )
 
-            # Check if any action requires user intervention
-            if any(
-                action_result.requires_user_action
-                for action_result in result
-                if action_result.requires_user_action
-            ):
-                logger.warning(
-                    "🙋‍♂️ Task requires user intervention - pausing execution"
+                    self._save_conversation(input_messages, model_output)
+                    self.message_manager._remove_last_state_message()  # we dont want the whole state in the chat history
+
+                    self._check_if_stopped_or_paused()
+
+                    self.message_manager.add_model_output(model_output)
+                except Exception as e:
+                    # model call failed, remove last state message from history
+                    self.message_manager._remove_last_state_message()
+                    raise e
+
+                self.controller.step_number = self.n_steps
+                start_multi_act = time.time()
+                result: list[ActionResult] = await self.controller.multi_act(
+                    model_output.action,
+                    self.browser_context,
+                    page_extraction_llm=self.page_extraction_llm,
+                    sensitive_data=self.sensitive_data,
+                    check_break_if_paused=lambda: self._check_if_stopped_or_paused(),
+                    available_file_paths=self.available_file_paths,
+                )
+                end_multi_act = time.time()
+                self.controller.latency_analyzer.record(
+                    "multi_act",
+                    start_multi_act,
+                    end_multi_act,
+                    self.n_steps,
+                    {
+                        "task": self.task,
+                        "action_count": len(model_output.action) if model_output else 0,
+                    },
+                )
+                self._last_result = result
+                self.controller.latency_analyzer.record(
+                    "step",
+                    step_start_time,
+                    time.time(),
+                    self.n_steps,
+                    {"task": self.task},
                 )
 
-                # Store the current page URL to detect when user completes the intervention
-                current_page = await self.browser_context.get_current_page()
-                original_url = current_page.url
-                logger.info(f"Original page URL: {original_url}")
+                # Check if any action requires user intervention
+                if any(
+                    action_result.requires_user_action
+                    for action_result in result
+                    if action_result.requires_user_action
+                ):
+                    logger.warning(
+                        "🙋‍♂️ Task requires user intervention - pausing execution"
+                    )
 
-                self._paused = True
+                    # Store the current page URL to detect when user completes the intervention
+                    current_page = await self.browser_context.get_current_page()
+                    original_url = current_page.url
+                    logger.info(f"Original page URL: {original_url}")
 
-                # Wait for either manual resume or automatic detection of page change
-                while self._paused:
-                    await asyncio.sleep(2)  # Check every 2 seconds
+                    self._paused = True
 
-                    # Check if page has changed (indicating user solved CAPTCHA)
-                    try:
-                        current_page = await self.browser_context.get_current_page()
-                        new_url = current_page.url
+                    # Wait for either manual resume or automatic detection of page change
+                    while self._paused:
+                        await asyncio.sleep(2)  # Check every 2 seconds
 
-                        # If URL changed significantly, assume user completed the intervention
-                        if (
-                            new_url != original_url
-                            and "sorry" not in new_url.lower()
-                            and "captcha" not in new_url.lower()
-                        ):
-                            logger.info(
-                                f"🔄 Page changed from {original_url} to {new_url}"
-                            )
-                            logger.info(
-                                "✅ Detected user completed intervention - auto-resuming task"
-                            )
-                            self._paused = False
-                            break
-                    except Exception as e:
-                        logger.debug(f"Error checking page URL: {e}")
+                        # Check if page has changed (indicating user solved CAPTCHA)
+                        try:
+                            current_page = await self.browser_context.get_current_page()
+                            new_url = current_page.url
 
-                logger.info("▶️ User intervention completed - resuming task")
+                            # If URL changed significantly, assume user completed the intervention
+                            if (
+                                new_url != original_url
+                                and "sorry" not in new_url.lower()
+                                and "captcha" not in new_url.lower()
+                            ):
+                                logger.info(
+                                    f"🔄 Page changed from {original_url} to {new_url}"
+                                )
+                                logger.info(
+                                    "✅ Detected user completed intervention - auto-resuming task"
+                                )
+                                self._paused = False
+                                break
+                        except Exception as e:
+                            logger.debug(f"Error checking page URL: {e}")
 
-            if len(result) > 0 and result[-1].is_done:
-                logger.info(f"📄 Result: {result[-1].extracted_content}")
+                    logger.info("▶️ User intervention completed - resuming task")
 
-            self.consecutive_failures = 0
+                if len(result) > 0 and result[-1].is_done:
+                    logger.info(f"📄 Result: {result[-1].extracted_content}")
 
-        except InterruptedError:
-            logger.debug("Agent paused")
-            self._last_result = [
-                ActionResult(
-                    error="The agent was paused - now continuing actions might need to be repeated",
-                    include_in_memory=True,
+                self.consecutive_failures = 0
+
+                # Set step span output
+                Laminar.set_span_output(
+                    {
+                        "actions_executed": (
+                            len(model_output.action) if model_output else 0
+                        ),
+                        "result_count": len(result),
+                        "is_done": result[-1].is_done if result else False,
+                        "consecutive_failures": self.consecutive_failures,
+                    }
                 )
-            ]
-            return
-        except Exception as e:
-            result = await self._handle_step_error(e)
-            self._last_result = result
 
-        finally:
-            actions = (
-                [a.model_dump(exclude_unset=True) for a in model_output.action]
-                if model_output
-                else []
-            )
-            if not result:
+            except InterruptedError:
+                logger.debug("Agent paused")
+                self._last_result = [
+                    ActionResult(
+                        error="The agent was paused - now continuing actions might need to be repeated",
+                        include_in_memory=True,
+                    )
+                ]
                 return
+            except Exception as e:
+                result = await self._handle_step_error(e)
+                self._last_result = result
 
-            if state:
-                self._make_history_item(model_output, state, result)
+            finally:
+                actions = (
+                    [a.model_dump(exclude_unset=True) for a in model_output.action]
+                    if model_output
+                    else []
+                )
+                if not result:
+                    return
+
+                if state:
+                    self._make_history_item(model_output, state, result)
 
     async def _handle_step_error(self, error: Exception) -> list[ActionResult]:
         """Handle all types of errors that can occur during a step"""
@@ -550,27 +600,37 @@ class Agent:
             return merged_input_messages
         return input_messages
 
+    @observe(name="agent.get_next_action")
     @time_execution_async("--get_next_action")
     async def get_next_action(self, input_messages: list[BaseMessage]) -> AgentOutput:
         """Get next action from LLM based on current state"""
-        if self.use_mock_llm:
-            # Mock response for testing latency without API calls
-            from browser_ai.agent.views import AgentBrain
+        with Laminar.start_as_current_span(
+            name="agent.llm_call",
+            input={
+                "model": self.model_name,
+                "message_count": len(input_messages),
+                "step": self.n_steps,
+            },
+            span_type="LLM",
+        ):
+            if self.use_mock_llm:
+                # Mock response for testing latency without API calls
+                from browser_ai.agent.views import AgentBrain
 
-            mock_brain = AgentBrain(
-                page_summary="Mock page summary",
-                evaluation_previous_goal="Success",
-                memory="Mock memory",
-                next_goal="Complete task",
-            )
-            # Create a simple action, e.g., click
-            mock_action = self.ActionModel(**{"click": {"index": 1}})
-            mock_output = self.AgentOutput(
-                current_state=mock_brain, action=[mock_action]
-            )
-            self._log_response(mock_output)
-            self.n_steps += 1
-            return mock_output
+                mock_brain = AgentBrain(
+                    page_summary="Mock page summary",
+                    evaluation_previous_goal="Success",
+                    memory="Mock memory",
+                    next_goal="Complete task",
+                )
+                # Create a simple action, e.g., click
+                mock_action = self.ActionModel(**{"click": {"index": 1}})
+                mock_output = self.AgentOutput(
+                    current_state=mock_brain, action=[mock_action]
+                )
+                self._log_response(mock_output)
+                self.n_steps += 1
+                return mock_output
 
         converted_input_messages = self._convert_input_messages(
             input_messages, self.model_name
@@ -622,6 +682,20 @@ class Agent:
         parsed.action = parsed.action[: self.max_actions_per_step]
         self._log_response(parsed)
         self.n_steps += 1
+
+        # Set LLM call output
+        Laminar.set_span_output(
+            {
+                "action_count": len(parsed.action),
+                "actions": [
+                    list(a.model_dump(exclude_unset=True).keys())[0]
+                    for a in parsed.action
+                ],
+                "current_state": (
+                    parsed.current_state.model_dump() if parsed.current_state else None
+                ),
+            }
+        )
 
         return parsed
 
@@ -693,89 +767,130 @@ class Agent:
 
         logger.debug(f"Version: {self.version}, Source: {self.source}")
 
-    @observe(name="agent.run", ignore_output=True)
+    @observe(name="agent.run")
     async def run(self, max_steps: int = 100) -> AgentHistoryList:
         """Execute the task with maximum number of steps"""
-        try:
-            self._log_agent_run()
+        run_start_time = time.time()
 
-            # Execute initial actions if provided
-            if self.initial_actions:
-                start_initial_actions = time.time()
-                result = await self.controller.multi_act(
-                    self.initial_actions,
-                    self.browser_context,
-                    check_for_new_elements=False,
-                    page_extraction_llm=self.page_extraction_llm,
-                    check_break_if_paused=lambda: self._check_if_stopped_or_paused(),
-                    available_file_paths=self.available_file_paths,
+        with Laminar.start_as_current_span(
+            name="agent.task_execution",
+            input={
+                "task": self.task,
+                "max_steps": max_steps,
+                "model": self.model_name,
+                "planner_model": self.planner_model_name,
+                "use_vision": self.use_vision,
+            },
+            span_type="WORKFLOW",
+        ):
+            try:
+                self._log_agent_run()
+
+                # Execute initial actions if provided
+                if self.initial_actions:
+                    start_initial_actions = time.time()
+                    result = await self.controller.multi_act(
+                        self.initial_actions,
+                        self.browser_context,
+                        check_for_new_elements=False,
+                        page_extraction_llm=self.page_extraction_llm,
+                        check_break_if_paused=lambda: self._check_if_stopped_or_paused(),
+                        available_file_paths=self.available_file_paths,
+                    )
+                    end_initial_actions = time.time()
+                    self.controller.latency_analyzer.record(
+                        "initial_actions",
+                        start_initial_actions,
+                        end_initial_actions,
+                        0,
+                        {"task": self.task, "action_count": len(self.initial_actions)},
+                    )
+                    self._last_result = result
+
+                for step in range(max_steps):
+                    if self._too_many_failures():
+                        break
+
+                    # Check control flags before each step
+                    if not await self._handle_control_flags():
+                        break
+
+                    await self.step()
+
+                    if self.history.is_done():
+                        if self.validate_output and step < max_steps - 1:
+                            if not await self._validate_output():
+                                continue
+
+                        logger.info("✅ Task completed successfully")
+                        if self.register_done_callback:
+                            self.register_done_callback(self.history)
+                        break
+                else:
+                    logger.info("❌ Failed to complete task in maximum steps")
+
+                # Set comprehensive task execution metrics
+                run_duration = time.time() - run_start_time
+                Laminar.set_span_output(
+                    {
+                        "completed": self.history.is_done(),
+                        "total_steps": self.n_steps,
+                        "duration_seconds": run_duration,
+                        "consecutive_failures": self.consecutive_failures,
+                        "final_result": (
+                            self.history.final_result()
+                            if self.history.is_done()
+                            else None
+                        ),
+                    }
                 )
-                end_initial_actions = time.time()
-                self.controller.latency_analyzer.record(
-                    "initial_actions",
-                    start_initial_actions,
-                    end_initial_actions,
-                    0,
-                    {"task": self.task, "action_count": len(self.initial_actions)},
-                )
-                self._last_result = result
 
-            for step in range(max_steps):
-                if self._too_many_failures():
-                    break
-
-                # Check control flags before each step
-                if not await self._handle_control_flags():
-                    break
-
-                await self.step()
-
-                if self.history.is_done():
-                    if self.validate_output and step < max_steps - 1:
-                        if not await self._validate_output():
-                            continue
-
-                    logger.info("✅ Task completed successfully")
-                    if self.register_done_callback:
-                        self.register_done_callback(self.history)
-                    break
-            else:
-                logger.info("❌ Failed to complete task in maximum steps")
-
-            return self.history
-        finally:
-            if not self.injected_browser_context:
-                await self.browser_context.close()
-
-            if not self.injected_browser and self.browser:
-                await self.browser.close()
-
-            if self.generate_gif:
-                # 1. Define the target directory relative to the current script's location
-                output_dir = os.path.join("output", "history_gif")
-
-                # 2. Create the directory if it doesn't already exist
-                os.makedirs(output_dir, exist_ok=True)
-
-                # 3. Generate a unique filename
-                # Note: I'm replacing "uuid" with a call to the uuid module for a real example
-                filename = f"agent_history-{self.task}-{uuid.uuid4()}.gif"
-
-                # 4. Combine the directory and filename to create the full path
-                output_path = os.path.join(output_dir, filename)
-
-                # This logic still allows you to override the path if self.generate_gif is a string
-                if isinstance(self.generate_gif, str):
-                    output_path = self.generate_gif
-
-                create_history_gif(
-                    task=self.task, history=self.history, output_path=output_path
+                # Record custom metrics
+                Laminar.event(
+                    name="task_completion",
+                    attributes={
+                        "task": self.task,
+                        "success": self.history.is_done(),
+                        "steps": self.n_steps,
+                        "duration": run_duration,
+                        "model": self.model_name,
+                    },
                 )
 
-            # Write latency analysis to CSV
-            await self.controller.latency_analyzer.write_to_csv(
-                "output/latency_analysis.csv"
-            )
+                return self.history
+            finally:
+                if not self.injected_browser_context:
+                    await self.browser_context.close()
+
+                if not self.injected_browser and self.browser:
+                    await self.browser.close()
+
+                if self.generate_gif:
+                    # 1. Define the target directory relative to the current script's location
+                    output_dir = os.path.join("output", "history_gif")
+
+                    # 2. Create the directory if it doesn't already exist
+                    os.makedirs(output_dir, exist_ok=True)
+
+                    # 3. Generate a unique filename
+                    # Note: I'm replacing "uuid" with a call to the uuid module for a real example
+                    filename = f"agent_history-{self.task}-{uuid.uuid4()}.gif"
+
+                    # 4. Combine the directory and filename to create the full path
+                    output_path = os.path.join(output_dir, filename)
+
+                    # This logic still allows you to override the path if self.generate_gif is a string
+                    if isinstance(self.generate_gif, str):
+                        output_path = self.generate_gif
+
+                    create_history_gif(
+                        task=self.task, history=self.history, output_path=output_path
+                    )
+
+                # Write latency analysis to CSV
+                await self.controller.latency_analyzer.write_to_csv(
+                    "output/latency_analysis.csv"
+                )
 
     def _too_many_failures(self) -> bool:
         """Check if we should stop due to too many failures"""
