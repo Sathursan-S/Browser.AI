@@ -7,108 +7,121 @@ The Browser.AI extension now includes an **intelligent conversational chatbot** 
 ## 🎯 Key Features
 
 ### 1. **Conversational Intent Clarification**
-- The chatbot engages in a natural conversation with users
-- Asks clarifying questions about vague requests
-- Confirms understanding before starting automation
-- Provides a friendly, helpful experience
+
+-   The chatbot engages in a natural conversation with users
+-   Asks clarifying questions about vague requests
+-   Confirms understanding before starting automation
+-   Provides a friendly, helpful experience
 
 ### 2. **Two Modes Available**
-- **💬 Chat Mode** (Default): Conversational clarification before automation
-- **⚡ Direct Mode**: Traditional immediate task execution
+
+-   **💬 Chat Mode** (Default): Conversational clarification before automation
+-   **⚡ Direct Mode**: Traditional immediate task execution
 
 ### 3. **Smart Task Formulation**
-- Transforms vague user requests into specific, actionable tasks
-- Asks about:
-  - Which website to use
-  - Budget constraints
-  - Specific features or criteria
-  - Intended purpose
+
+-   Transforms vague user requests into specific, actionable tasks
+-   Asks about:
+    -   Which website to use
+    -   Budget constraints
+    -   Specific features or criteria
+    -   Intended purpose
 
 ### 4. **Visual Conversation Interface**
-- Modern chat-like UI
-- Message bubbles for user and assistant
-- Typing indicators
-- Task preview before starting
-- Confidence scoring
+
+-   Modern chat-like UI
+-   Message bubbles for user and assistant
+-   Typing indicators
+-   Task preview before starting
+-   Confidence scoring
 
 ## 🚀 How It Works
 
 ### User Flow
 
 1. **User Opens Extension**
-   - Sees conversation mode by default
-   - Greeted by the AI assistant
+
+    - Sees conversation mode by default
+    - Greeted by the AI assistant
 
 2. **User Sends Message**
-   ```
-   User: "I want to buy headphones"
-   ```
+
+    ```
+    User: "I want to buy headphones"
+    ```
 
 3. **AI Asks Clarifying Questions**
-   ```
-   Assistant: "Sure! I can help you find headphones. Let me ask a few questions:
-   - What's your budget range?
-   - Do you prefer any specific website (Amazon, eBay, etc.)?
-   - Are you looking for wireless or wired headphones?
-   - Any specific features you need?"
-   ```
+
+    ```
+    Assistant: "Sure! I can help you find headphones. Let me ask a few questions:
+    - What's your budget range?
+    - Do you prefer any specific website (Amazon, eBay, etc.)?
+    - Are you looking for wireless or wired headphones?
+    - Any specific features you need?"
+    ```
 
 4. **User Provides Details**
-   ```
-   User: "Under $100, Amazon, wireless with noise cancellation"
-   ```
+
+    ```
+    User: "Under $100, Amazon, wireless with noise cancellation"
+    ```
 
 5. **AI Confirms and Prepares Task**
-   ```
-   Assistant: "Perfect! So you want wireless headphones with noise cancellation 
-   from Amazon for under $100. Let me confirm:
-   I'll search Amazon for wireless noise-cancelling headphones under $100 and 
-   show you the top options with prices and reviews. Sound good?
 
-   ✅ READY TO START
-   TASK: Go to Amazon.com, search for wireless noise-cancelling headphones 
-   under $100, filter by customer rating (4+ stars), and show me the top 5 
-   options with their prices, ratings, and key features"
-   ```
+    ```
+    Assistant: "Perfect! So you want wireless headphones with noise cancellation
+    from Amazon for under $100. Let me confirm:
+    I'll search Amazon for wireless noise-cancelling headphones under $100 and
+    show you the top options with prices and reviews. Sound good?
+
+    ✅ READY TO START
+    TASK: Go to Amazon.com, search for wireless noise-cancelling headphones
+    under $100, filter by customer rating (4+ stars), and show me the top 5
+    options with their prices, ratings, and key features"
+    ```
 
 6. **User Clicks "Start Automation"**
-   - Browser automation begins with the clarified, specific task
+    - Browser automation begins with the clarified, specific task
 
 ## 📁 Files Created/Modified
 
 ### New Files
 
 1. **`browser_ai_gui/chatbot_service.py`**
-   - Core chatbot service using Gemini
-   - Manages conversation state
-   - Parses intent from responses
-   - Handles multiple conversation sessions
+
+    - Core chatbot service using Gemini
+    - Manages conversation state
+    - Parses intent from responses
+    - Handles multiple conversation sessions
 
 2. **`browser_ai_extension/browse_ai/src/sidepanel/components/ConversationMode.tsx`**
-   - React component for conversation UI
-   - Handles message display
-   - Shows typing indicators
-   - Manages intent confirmation
+
+    - React component for conversation UI
+    - Handles message display
+    - Shows typing indicators
+    - Manages intent confirmation
 
 3. **`browser_ai_extension/browse_ai/src/sidepanel/components/ConversationMode.css`**
-   - Styling for conversation interface
-   - Modern chat-like design
-   - Animations and transitions
+    - Styling for conversation interface
+    - Modern chat-like design
+    - Animations and transitions
 
 ### Modified Files
 
 1. **`browser_ai_gui/websocket_server.py`**
-   - Added chatbot service integration
-   - New WebSocket events: `chat_message`, `start_clarified_task`, `reset_conversation`
-   - Intent processing and task starting logic
+
+    - Added chatbot service integration
+    - New WebSocket events: `chat_message`, `start_clarified_task`, `reset_conversation`
+    - Intent processing and task starting logic
 
 2. **`browser_ai_extension/browse_ai/src/sidepanel/SidePanel.tsx`**
-   - Added conversation mode toggle
-   - Integrated ConversationMode component
-   - Mode switching logic
+
+    - Added conversation mode toggle
+    - Integrated ConversationMode component
+    - Mode switching logic
 
 3. **`browser_ai_extension/browse_ai/src/sidepanel/SidePanel.css`**
-   - Added mode toggle button styling
+    - Added mode toggle button styling
 
 ## 🔧 Technical Architecture
 
@@ -118,7 +131,7 @@ The Browser.AI extension now includes an **intelligent conversational chatbot** 
 # chatbot_service.py
 class ChatbotService:
     - Uses langchain_google_genai.ChatGoogleGenerativeAI
-    - Model: gemini-2.0-flash-exp
+    - Model: gemini-2.5-flash-lite
     - Temperature: 0.7 (conversational)
     - Maintains conversation history per session
     - Parses responses for task readiness indicators
@@ -156,18 +169,20 @@ Server -> Client:
 The chatbot requires a Google Gemini API key:
 
 1. **Get API Key**:
-   - Go to https://makersuite.google.com/app/apikey
-   - Create an API key
+
+    - Go to https://makersuite.google.com/app/apikey
+    - Create an API key
 
 2. **Set in Environment**:
-   ```bash
-   # .env file
-   GEMINI_API_KEY=your_api_key_here
-   ```
+
+    ```bash
+    # .env file
+    GEMINI_API_KEY=your_api_key_here
+    ```
 
 3. **Or Set in Config**:
-   - The key is read from `config.py` LLMConfig
-   - Provider must be set to 'google'
+    - The key is read from `config.py` LLMConfig
+    - Provider must be set to 'google'
 
 ### Model Configuration
 
@@ -177,13 +192,14 @@ In `browser_ai_gui/config.py`:
 @dataclass
 class LLMConfig:
     provider: str = 'google'
-    model: str = 'gemini-2.0-flash-exp'  # Fast and conversational
+    model: str = 'gemini-2.5-flash-lite'  # Fast and conversational
     temperature: float = 0.7  # Balanced creativity
 ```
 
 ## 💡 Usage Examples
 
 ### Example 1: Shopping
+
 ```
 User: "I need new running shoes"
 
@@ -198,11 +214,12 @@ User: "Under $120, size 10, Nike, Amazon"
 AI: "Perfect! Looking for Nike running shoes, size 10, under $120 on Amazon.
 
 ✅ READY TO START
-TASK: Go to Amazon.com, search for Nike running shoes size 10 under $120, 
+TASK: Go to Amazon.com, search for Nike running shoes size 10 under $120,
 filter by 4+ star ratings, and show me the top 5 options with prices and reviews"
 ```
 
 ### Example 2: Downloads
+
 ```
 User: "Download Python tutorial"
 
@@ -216,12 +233,13 @@ User: "PDF, beginner level"
 AI: "Got it! Finding beginner-level Python tutorial PDFs.
 
 ✅ READY TO START
-TASK: Search Google for 'beginner Python tutorial PDF free download', 
-identify reputable educational sites like Python.org or Real Python, 
+TASK: Search Google for 'beginner Python tutorial PDF free download',
+identify reputable educational sites like Python.org or Real Python,
 and download a comprehensive beginner's guide"
 ```
 
 ### Example 3: Research
+
 ```
 User: "Find information about climate change"
 
@@ -234,9 +252,9 @@ User: "Effects on ocean levels, scientific papers from last 5 years"
 
 AI: "Excellent! I'll search for recent scientific research on climate change effects on ocean levels.
 
-✅ READY TO START  
-TASK: Go to Google Scholar, search for 'climate change ocean sea level rise' 
-papers from 2020-2025, and collect titles, authors, and abstracts of the 
+✅ READY TO START
+TASK: Go to Google Scholar, search for 'climate change ocean sea level rise'
+papers from 2020-2025, and collect titles, authors, and abstracts of the
 top 10 most cited papers"
 ```
 
@@ -244,22 +262,23 @@ top 10 most cited papers"
 
 ### Conversation Interface
 
-- **Message Bubbles**: User messages on right (blue), AI on left (gray)
-- **Typing Indicator**: Animated dots while AI is processing
-- **Task Preview**: Special highlighting for proposed automation tasks
-- **Confidence Score**: Shows AI's confidence in understanding (0-100%)
-- **Auto-scroll**: Messages automatically scroll to latest
-- **Reset Button**: Start fresh conversation anytime
+-   **Message Bubbles**: User messages on right (blue), AI on left (gray)
+-   **Typing Indicator**: Animated dots while AI is processing
+-   **Task Preview**: Special highlighting for proposed automation tasks
+-   **Confidence Score**: Shows AI's confidence in understanding (0-100%)
+-   **Auto-scroll**: Messages automatically scroll to latest
+-   **Reset Button**: Start fresh conversation anytime
 
 ### Mode Toggle
 
-- **Chat Mode** 💬: Default, conversational
-- **Direct Mode** ⚡: Instant task execution (traditional)
-- Easy toggle in header
+-   **Chat Mode** 💬: Default, conversational
+-   **Direct Mode** ⚡: Instant task execution (traditional)
+-   Easy toggle in header
 
 ### Intent Confirmation
 
 When task is ready:
+
 ```
 ┌─────────────────────────────────────────┐
 │ ✅ Ready to start automation!           │
@@ -279,30 +298,35 @@ When task is ready:
 ## 🐛 Troubleshooting
 
 ### Issue: "Chatbot not initialized"
+
 **Solution**: Check GEMINI_API_KEY in .env file
 
 ### Issue: No response from chatbot
-**Solution**: 
+
+**Solution**:
+
 1. Verify API key is valid
 2. Check internet connection
 3. Check browser console for errors
 4. Ensure server is running
 
 ### Issue: Mode toggle not working
+
 **Solution**: Refresh extension panel
 
 ### Issue: Messages not appearing
+
 **Solution**: Check WebSocket connection status in header
 
 ## 📊 Benefits Over Direct Mode
 
-| Feature | Direct Mode | Chat Mode |
-|---------|-------------|-----------|
-| **Clarity** | User must be specific | AI helps clarify |
-| **Accuracy** | Vague tasks may fail | Specific tasks formulated |
-| **User Experience** | Immediate but risky | Conversational and safe |
-| **Success Rate** | ~60% for vague requests | ~90% with clarification |
-| **Learning Curve** | Requires knowing exact syntax | Natural language works |
+| Feature             | Direct Mode                   | Chat Mode                 |
+| ------------------- | ----------------------------- | ------------------------- |
+| **Clarity**         | User must be specific         | AI helps clarify          |
+| **Accuracy**        | Vague tasks may fail          | Specific tasks formulated |
+| **User Experience** | Immediate but risky           | Conversational and safe   |
+| **Success Rate**    | ~60% for vague requests       | ~90% with clarification   |
+| **Learning Curve**  | Requires knowing exact syntax | Natural language works    |
 
 ## 🚦 Best Practices
 
@@ -323,13 +347,14 @@ When task is ready:
 ## 🔮 Future Enhancements
 
 Potential improvements:
-- Multi-turn task refinement
-- Learning from past conversations
-- Suggested completions
-- Voice input support
-- Conversation export
-- Task templates based on common patterns
-- Multi-language support
+
+-   Multi-turn task refinement
+-   Learning from past conversations
+-   Suggested completions
+-   Voice input support
+-   Conversation export
+-   Task templates based on common patterns
+-   Multi-language support
 
 ## 📖 API Reference
 
@@ -361,11 +386,12 @@ class ChatbotIntent(BaseModel):
 ## 🎓 System Prompt
 
 The chatbot uses a carefully crafted system prompt that:
-- Defines its role as a Browser.AI assistant
-- Instructs it to ask clarifying questions
-- Provides response format guidelines
-- Includes examples of good task descriptions
-- Handles different request types (shopping, downloads, research, etc.)
+
+-   Defines its role as a Browser.AI assistant
+-   Instructs it to ask clarifying questions
+-   Provides response format guidelines
+-   Includes examples of good task descriptions
+-   Handles different request types (shopping, downloads, research, etc.)
 
 See `chatbot_service.py` for the full system prompt.
 
@@ -373,16 +399,16 @@ See `chatbot_service.py` for the full system prompt.
 
 ### Manual Testing Checklist
 
-- [ ] Can send message in chat mode
-- [ ] AI responds with questions
-- [ ] Can answer AI questions
-- [ ] Task readiness is detected
-- [ ] "Start Automation" button appears
-- [ ] Task starts correctly
-- [ ] Can reset conversation
-- [ ] Can toggle between modes
-- [ ] Typing indicator shows
-- [ ] Messages auto-scroll
+-   [ ] Can send message in chat mode
+-   [ ] AI responds with questions
+-   [ ] Can answer AI questions
+-   [ ] Task readiness is detected
+-   [ ] "Start Automation" button appears
+-   [ ] Task starts correctly
+-   [ ] Can reset conversation
+-   [ ] Can toggle between modes
+-   [ ] Typing indicator shows
+-   [ ] Messages auto-scroll
 
 ### Example Test Scenarios
 
@@ -394,6 +420,7 @@ See `chatbot_service.py` for the full system prompt.
 ## 📞 Support
 
 For issues or questions:
+
 1. Check API key configuration
 2. Review browser console logs
 3. Check Python server logs

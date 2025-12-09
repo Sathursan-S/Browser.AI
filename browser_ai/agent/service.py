@@ -641,8 +641,19 @@ class Agent:
             self.model_name == "deepseek-reasoner"
             or self.model_name.startswith("deepseek-r1")
             or self.model_name.startswith("gemini")
+            or self.chat_model_library == "ChatGoogleGenerativeAI"
         ):
-            output = self.llm.invoke(converted_input_messages)
+            try:
+                output = self.llm.invoke(converted_input_messages)
+            except Exception as e:
+                # Auto-recover from invalid model name for Gemini
+                if "unexpected model name format" in str(e) and self.chat_model_library == "ChatGoogleGenerativeAI":
+                    logger.warning(f"Invalid model name '{self.model_name}' for Gemini. Retrying with 'gemini-2.5-flash-lite'...")
+                    self.llm.model = "gemini-flash-latest"
+                    output = self.llm.invoke(converted_input_messages)
+                else:
+                    raise e
+
             output.content = self._remove_think_tags(output.content)
             # TODO: currently invoke does not return reasoning_content, we should override invoke
             try:

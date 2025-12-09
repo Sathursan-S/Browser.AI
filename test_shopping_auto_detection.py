@@ -21,7 +21,7 @@ async def test_shopping_detection():
     print("Test Case 1: Shopping Task Detection")
     print("-" * 60)
     
-    llm = ChatGoogleGenerativeAI(model='gemini-2.0-flash-exp', temperature=0.0)
+    llm = ChatGoogleGenerativeAI(model='gemini-2.5-flash-lite', temperature=0.0)
     agent = Agent(
         task="buy wireless headphones under $100",
         llm=llm
@@ -111,7 +111,7 @@ async def test_manual_override():
     print("TEST: Manual Override of Auto-Detection")
     print("="*60 + "\n")
     
-    llm = ChatGoogleGenerativeAI(model='gemini-2.0-flash-exp', temperature=0.0)
+    llm = ChatGoogleGenerativeAI(model='gemini-2.5-flash-lite', temperature=0.0)
     
     # Provide custom initial actions - should override auto-detection
     custom_actions = [

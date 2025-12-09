@@ -22,8 +22,8 @@ api_key = os.getenv("GEMINI_API_KEY", "")
 class LLMConfig:
     """Configuration for Language Model"""
 
-    provider: str = "openai"  # openai, anthropic, ollama, google, etc.
-    model: str = "gpt-4-turbo"
+    provider: str = "google"  # openai, anthropic, ollama, google, etc.
+    model: str = "gemini-2.0-flash"
     api_key: str = SecretStr(api_key) if api_key else SecretStr("")
     base_url: Optional[str] = None  # For custom endpoints
     temperature: float = 0.1
@@ -183,8 +183,14 @@ class ConfigManager:
             elif self.llm_config.provider == "google":
                 from langchain_google_genai import ChatGoogleGenerativeAI
 
+                model = self.llm_config.model
+                # Auto-correct if model is not a valid Gemini model (e.g. still set to OpenAI default)
+                if not model or model.startswith("gpt-") or (not model.startswith("gemini") and not model.startswith("models/")):
+                    print(f"Warning: Invalid model '{model}' for Google provider. Switching to 'gemini-2.5-flash-lite'.")
+                    model = "gemini-2.5-flash-lite"
+
                 kwargs = {
-                    "model": self.llm_config.model,
+                    "model": model,
                     # 'temperature': self.llm_config.temperature,
                 }
 
