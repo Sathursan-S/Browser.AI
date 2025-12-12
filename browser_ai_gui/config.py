@@ -52,7 +52,7 @@ class AgentConfig:
     max_failures: int = 5
     retry_delay: int = 10
     max_steps: int = 200
-    generate_gif: bool = True
+    generate_gif: bool = False
     validate_output: bool = True
     planner_llm: str = "gemini-flash-latest"
     page_extraction_llm: str = "gemini-2.5-flash-lite"
