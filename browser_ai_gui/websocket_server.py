@@ -57,12 +57,6 @@ from .stuck_detector import StuckDetectionConfig, StuckDetector
 
 logger = logging.getLogger(__name__)
 
-from dotenv import load_dotenv
-import os
-
-load_dotenv()
-api_key = os.getenv("ANTHROPIC_API_KEY")
-
 
 class ExtensionTaskManager:
     """Manages Browser.AI tasks initiated from Chrome extension"""
@@ -119,12 +113,12 @@ class ExtensionTaskManager:
             from browser_ai import Agent, Browser, BrowserConfig
 
             # Create LLM instance
-            # llm = self.config_manager.get_llm_instance()
-            llm = ChatOpenAI(
-                model="MiniMax-M2",
-                api_key=api_key,
-                base_url="https://api.minimax.io/v1",
-            )
+            llm = self.config_manager.get_llm_instance()
+            # llm = ChatOpenAI(
+            #     model="MiniMax-M2",
+            #     api_key=api_key,
+            #     base_url="https://api.minimax.io/v1",
+            # )
 
             # Create browser config with CDP connection
             self.cdp_endpoint = cdp_endpoint
@@ -194,12 +188,12 @@ class ExtensionTaskManager:
             from browser_ai import Agent, Browser, BrowserConfig
 
             # Create LLM instance
-            # llm = self.config_manager.get_llm_instance()
-            llm = ChatOpenAI(
-                model="MiniMax-M2",
-                api_key=api_key,
-                base_url="https://api.minimax.io/v1",
-            )
+            llm = self.config_manager.get_llm_instance()
+            # llm = ChatOpenAI(
+            #     model="MiniMax-M2",
+            #     api_key=api_key,
+            #     base_url="https://api.minimax.io/v1",
+            # )
 
             # Create browser config without CDP (new browser instance)
             browser_config = BrowserConfig(

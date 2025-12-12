@@ -632,30 +632,21 @@ class Agent:
                 self.n_steps += 1
                 return mock_output
 
-        converted_input_messages = self._convert_input_messages(
-            input_messages, self.model_name
-        )
-
         start_llm_call = time.time()
-        if (
-            self.model_name == "deepseek-reasoner"
-            or self.model_name.startswith("deepseek-r1")
-            or self.model_name.startswith("gemini")
-            or self.chat_model_library == "ChatGoogleGenerativeAI"
+
+        # Special handling for reasoning models that need content extraction
+        if self.model_name == "deepseek-reasoner" or self.model_name.startswith(
+            "deepseek-r1"
         ):
+            converted_input_messages = self._convert_input_messages(
+                input_messages, self.model_name
+            )
             try:
                 output = self.llm.invoke(converted_input_messages)
             except Exception as e:
-                # Auto-recover from invalid model name for Gemini
-                if "unexpected model name format" in str(e) and self.chat_model_library == "ChatGoogleGenerativeAI":
-                    logger.warning(f"Invalid model name '{self.model_name}' for Gemini. Retrying with 'gemini-2.5-flash-lite'...")
-                    self.llm.model = "gemini-flash-latest"
-                    output = self.llm.invoke(converted_input_messages)
-                else:
-                    raise e
+                raise e
 
             output.content = self._remove_think_tags(output.content)
-            # TODO: currently invoke does not return reasoning_content, we should override invoke
             try:
                 parsed_json = self.message_manager.extract_json_from_model_output(
                     output.content
@@ -665,12 +656,14 @@ class Agent:
                 logger.warning(f"Failed to parse model output: {output} {str(e)}")
                 raise ValueError("Could not parse response.")
         elif self.tool_calling_method is None:
+            # Use native structured output (recommended for Gemini and modern models)
             structured_llm = self.llm.with_structured_output(
                 self.AgentOutput, include_raw=True
             )
             response: dict[str, Any] = await structured_llm.ainvoke(input_messages)  # type: ignore
             parsed: AgentOutput | None = response["parsed"]
         else:
+            # Use structured output with specific method (e.g., function_calling for OpenAI)
             structured_llm = self.llm.with_structured_output(
                 self.AgentOutput, include_raw=True, method=self.tool_calling_method
             )

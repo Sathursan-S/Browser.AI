@@ -15,7 +15,7 @@ from pydantic import SecretStr
 
 load_dotenv()
 # Get API key from environment, but don't require it
-api_key = os.getenv("GEMINI_API_KEY", "")
+# api_key = os.getenv("GEMINI_API_KEY", "")
 
 
 @dataclass
@@ -23,8 +23,8 @@ class LLMConfig:
     """Configuration for Language Model"""
 
     provider: str = "google"  # openai, anthropic, ollama, google, etc.
-    model: str = "gemini-2.0-flash"
-    api_key: str = SecretStr(api_key) if api_key else SecretStr("")
+    model: str = "gemini-2.5-flash-lite"
+    api_key: str = SecretStr("")  # Disabled by default
     base_url: Optional[str] = None  # For custom endpoints
     temperature: float = 0.1
     max_tokens: Optional[int] = None
@@ -93,6 +93,9 @@ class ConfigManager:
         # Load existing config
         self.load_config()
 
+        # Override with environment variables if present (takes priority)
+        self._load_from_env()
+
     def load_config(self) -> None:
         """Load configuration from file"""
         if not self.config_file.exists():
@@ -114,6 +117,25 @@ class ConfigManager:
 
         except Exception as e:
             print(f"Error loading config: {e}")
+
+    def _load_from_env(self) -> None:
+        """Load API key and other settings from environment variables (takes priority over config file)"""
+        # Load API key based on provider
+        if self.llm_config.provider == "google":
+            gemini_key = os.getenv("GEMINI_API_KEY")
+            if gemini_key:
+                self.llm_config.api_key = SecretStr(gemini_key)
+                print(f"✓ Loaded GEMINI_API_KEY from environment")
+        elif self.llm_config.provider == "openai":
+            openai_key = os.getenv("OPENAI_API_KEY")
+            if openai_key:
+                self.llm_config.api_key = SecretStr(openai_key)
+                print(f"✓ Loaded OPENAI_API_KEY from environment")
+        elif self.llm_config.provider == "anthropic":
+            anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+            if anthropic_key:
+                self.llm_config.api_key = SecretStr(anthropic_key)
+                print(f"✓ Loaded ANTHROPIC_API_KEY from environment")
 
     def save_config(self) -> None:
         """Save configuration to file"""
@@ -185,8 +207,17 @@ class ConfigManager:
 
                 model = self.llm_config.model
                 # Auto-correct if model is not a valid Gemini model (e.g. still set to OpenAI default)
-                if not model or model.startswith("gpt-") or (not model.startswith("gemini") and not model.startswith("models/")):
-                    print(f"Warning: Invalid model '{model}' for Google provider. Switching to 'gemini-2.5-flash-lite'.")
+                if (
+                    not model
+                    or model.startswith("gpt-")
+                    or (
+                        not model.startswith("gemini")
+                        and not model.startswith("models/")
+                    )
+                ):
+                    print(
+                        f"Warning: Invalid model '{model}' for Google provider. Switching to 'gemini-2.5-flash-lite'."
+                    )
                     model = "gemini-2.5-flash-lite"
 
                 kwargs = {
