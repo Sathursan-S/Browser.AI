@@ -379,6 +379,7 @@ source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
     { name = "beautifulsoup4" },
+    { name = "eventlet" },
     { name = "flask" },
     { name = "flask-socketio" },
     { name = "google-genai" },
@@ -431,6 +432,7 @@ requires-dist = [
     { name = "aiofiles", specifier = ">=24.1.0" },
     { name = "beautifulsoup4", specifier = ">=4.12.3" },
     { name = "build", marker = "extra == 'dev'", specifier = ">=1.2.2" },
+    { name = "eventlet", specifier = ">=0.40.3" },
     { name = "eventlet", marker = "extra == 'gui'", specifier = ">=0.33.0" },
     { name = "flask", specifier = ">=3.1.2" },
     { name = "flask", marker = "extra == 'gui'", specifier = ">=2.3.0" },

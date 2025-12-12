@@ -16,7 +16,6 @@ from flask_socketio import SocketIO, emit
 from .config import ConfigManager
 from .event_adapter import EventAdapter, EventType, LogEvent, LogLevel
 from .websocket_server import setup_extension_websocket, ExtensionWebSocketHandler
-from .cdp_websocket_server import setup_cdp_websocket
 from .services.task_manager import TaskManager
 
 
@@ -47,11 +46,6 @@ class WebApp:
             setup_extension_websocket(
                 self.app, self.socketio, self.config_manager, self.event_adapter
             )
-        )
-
-        # Setup CDP WebSocket server for extension (new)
-        self.cdp_handler = setup_cdp_websocket(
-            self.app, self.socketio, self.config_manager, self.event_adapter
         )
 
         # Start event adapter

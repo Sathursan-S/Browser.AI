@@ -38,6 +38,7 @@ import {
   TaskHistoryEntry,
   ChatHistoryEntry,
 } from '../utils/state'
+import { VoiceMode } from '../voicemode/VoiceMode'
 
 export const SidePanel = () => {
   const [socket, setSocket] = useState<Socket | null>(null)
@@ -80,7 +81,7 @@ export const SidePanel = () => {
   const [intent, setIntent] = useState<{
     task_description: string
     is_ready: boolean
-    confidence: number
+    parameters?: Record<string, any>
   } | null>(null)
 
   // Auto-scroll logs
@@ -368,7 +369,8 @@ export const SidePanel = () => {
       is_extension: true,
     }
 
-    socket.emit('start_clarified_task', payload)
+    socket.emit('start_task', payload)
+    console.log('SidePanel: Starting clarified task:', payload)
 
     setLogs([])
     setTaskResult('')
@@ -542,14 +544,20 @@ export const SidePanel = () => {
 
         {mode === 'conversation' ? (
           /* Conversation Mode */
-          <ConversationMode
-            socket={socket}
-            connected={connected}
+          // <ConversationMode
+          //   socket={socket}
+          //   connected={connected}
+          //   onStartTask={handleStartClarifiedTask}
+          //   cdpEndpoint={cdpEndpoint}
+          //   messages={messages}
+          //   setMessages={setMessages}
+          //   intent={intent}
+          //   setIntent={setIntent}
+          //   onSwitchToAgent={() => setMode('agent')}
+          // />
+          <VoiceMode
             onStartTask={handleStartClarifiedTask}
             cdpEndpoint={cdpEndpoint}
-            messages={messages}
-            setMessages={setMessages}
-            intent={intent}
             setIntent={setIntent}
             onSwitchToAgent={() => setMode('agent')}
           />

@@ -16,21 +16,21 @@ export interface Message {
 }
 
 export interface Intent {
-  task_description: string
-  is_ready: boolean
-  confidence: number
+task_description: string
+is_ready: boolean
+confidence: number
 }
 
 interface ConversationModeProps {
-  socket: any
-  connected: boolean
-  onStartTask: (task: string, cdpEndpoint: string) => void
-  cdpEndpoint: string
-  messages: Message[]
-  setMessages: (messages: Message[]) => void
-  intent: Intent | null
-  setIntent: (intent: Intent | null) => void
-  onSwitchToAgent?: () => void
+socket: any
+connected: boolean
+onStartTask: (task: string, cdpEndpoint: string) => void
+cdpEndpoint: string
+messages: Message[]
+setMessages: (messages: Message[]) => void
+intent: Intent | null
+setIntent: (intent: Intent | null) => void
+onSwitchToAgent?: () => void
 }
 
 export const ConversationMode = ({
@@ -42,7 +42,7 @@ export const ConversationMode = ({
   setMessages,
   intent,
   setIntent,
-  onSwitchToAgent,
+onSwitchToAgent,
 }: ConversationModeProps) => {
   const [input, setInput] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)

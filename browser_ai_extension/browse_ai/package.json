@@ -30,7 +30,8 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "socket.io-client": "^4.7.2",
-    "tailwind-merge": "^1.14.0"
+    "tailwind-merge": "^1.14.0",
+    "@google/genai": "^1.33.0"
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.0.0-beta.26",
