@@ -37,6 +37,8 @@ dependencies = [
     "ipykernel>=7.1.0",
     "aiofiles>=24.1.0",
     "google-genai>=1.55.0",
+    "livekit>=1.0.20",
+    "livekit-api>=1.1.0",
 ]
 
 [project.optional-dependencies]
