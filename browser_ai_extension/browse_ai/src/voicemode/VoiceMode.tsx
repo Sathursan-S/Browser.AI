@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { FunctionDeclaration, Type } from '@google/genai'
 import { ConnectionState, TaskPayload } from '../types'
+import '../sidepanel/components/ConversationMode.css'
 
 export interface Intent {
   task_description: string
@@ -77,7 +78,7 @@ export const VoiceMode: React.FC<ConversationModeProps> = ({
   const systemInstruction = `# SYSTEM ROLE & PERSONA
 You are **Sam**, the voice of "Browz AI". You are an intelligent, playful, and polite assistant optimized for **Sri Lanka**. you can do web-based tasks with 'execute_browser_task'.
 You can perform almost any task a human can do in a web browser (shopping, research, booking, data extraction, form filling, play youtube and more) with the help of your friend Browz AI.
-- **Languages:** You are fluent in **English**, **Tamil**, and **Sinhala**. You **MUST** detect the language the user is speaking and reply in that exact same language immediately. you should respond in the same language that the user speaks to you.
+- **Languages:** You are fluent in **English(uk)**, **Tamil**, and **Sinhala**. You **MUST** detect the language the user is speaking and reply in that exact same language immediately. you should respond in the same language that the user speaks to you.
 - **Tone:** Friendly, warm, and helpful (like a smart Sri Lankan friend).
 - **Context:** You are based in Sri Lanka.
     - Currency: **LKR (Rs.)**
@@ -208,136 +209,137 @@ always start with greeting to ReXtro AI Zone and self intro in there languages E
 
   const isLive = connectionState === ConnectionState.CONNECTED
 
+  const getVoiceButtonState = () => {
+    switch (connectionState) {
+      case ConnectionState.CONNECTED:
+        return 'active'
+      case ConnectionState.CONNECTING:
+        return 'connecting'
+      case ConnectionState.ERROR:
+        return 'error'
+      default:
+        return 'idle'
+    }
+  }
+
+  const getVoiceButtonTitle = () => {
+    switch (connectionState) {
+      case ConnectionState.CONNECTED:
+        return 'Stop listening (Space or click)'
+      case ConnectionState.CONNECTING:
+        return 'Connecting...'
+      case ConnectionState.ERROR:
+        return 'Error - Click to retry'
+      default:
+        return 'Start listening (Space or click)'
+    }
+  }
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden">
-      {/* Abstract Background Shapes */}
-      <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-purple-300/30 rounded-full blur-[100px] pointer-events-none mix-blend-multiply" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-indigo-300/30 rounded-full blur-[100px] pointer-events-none mix-blend-multiply" />
+    <div className="conversation-mode">
+      {/* Voice Visualizer Container - Takes full space now */}
+      <div
+        className="voice-visualizer-container"
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px',
+        }}
+      >
+        <LiveVisualizer volume={volume} isActive={isLive} />
 
-      {/* Main Container - The "Stage" */}
-      <main className="w-full max-w-6xl z-10 grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-8 h-[85vh]">
-        {/* Left Column: The Agent & Interaction */}
-        <div className="flex flex-col relative bg-white/30 backdrop-blur-2xl rounded-[3rem] border border-white/50 shadow-2xl p-8 overflow-hidden">
-          {/* Top Bar */}
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-500 flex items-center justify-center text-white font-bold text-lg shadow-lg">
-                E
-              </div>
-              <div>
-                <h1 className="text-lg font-bold text-slate-800">Ello Assistant</h1>
-                <div className="flex items-center gap-1.5">
-                  <div
-                    className={`w-2 h-2 rounded-full ${isLive ? 'bg-green-500 animate-pulse' : 'bg-slate-400'}`}
-                  />
-                  <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-                    {connectionState}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Error Chip */}
-            {errorMessage && (
-              <div className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 text-xs font-medium rounded-full border border-red-100">
-                <AlertCircle size={14} />
-                {errorMessage}
-              </div>
-            )}
-          </div>
-
-          {/* Center Stage: The Orb */}
-          <div className="flex-1 flex flex-col items-center justify-center relative">
-            <LiveVisualizer volume={volume} isActive={isLive} />
-
-            {/* Prompt Text */}
-            <div
-              className={`mt-6 text-center transition-opacity duration-500 ${isLive ? 'opacity-100' : 'opacity-0'}`}
-            >
-              <p className="text-slate-500 text-lg font-medium animate-pulse">Listening...</p>
-            </div>
-
-            {!isLive && connectionState !== ConnectionState.CONNECTING && (
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
-                <p className="text-slate-400 font-medium">Tap the mic to wake me up</p>
-              </div>
-            )}
-          </div>
-
-          {/* Bottom Bar: Smart Home & Mic */}
-          <div className="mt-auto pt-6 flex flex-col gap-6">
-            {/* Mic Button - Floating nicely */}
-            <div className="flex justify-center">
-              <button
-                onClick={toggleConnection}
-                disabled={connectionState === ConnectionState.CONNECTING}
-                className={`
-                      relative flex items-center justify-center w-20 h-20 rounded-full transition-all duration-300 shadow-xl hover:scale-105 active:scale-95
-                      ${
-                        isLive
-                          ? 'bg-gradient-to-tr from-red-500 to-pink-500 shadow-red-500/30'
-                          : 'bg-gradient-to-tr from-indigo-500 to-purple-600 shadow-indigo-500/30'
-                      }
-                    `}
-              >
-                {isLive ? (
-                  <MicOff className="w-8 h-8 text-white" />
-                ) : (
-                  <Mic className="w-8 h-8 text-white" />
-                )}
-
-                {connectionState === ConnectionState.CONNECTING && (
-                  <div className="absolute inset-0 rounded-full border-4 border-white/30 border-t-white animate-spin" />
-                )}
-              </button>
-            </div>
-          </div>
+        {/* Status Text */}
+        <div
+          style={{
+            marginTop: '20px',
+            textAlign: 'center',
+            transition: 'opacity 0.5s',
+          }}
+        >
+          <p
+            style={{
+              color: '#f1f5f9',
+              fontSize: '18px',
+              fontWeight: 'medium',
+              margin: 0,
+            }}
+          >
+            {isLive ? 'Listening...' : 'Tap mic to start'}
+          </p>
         </div>
 
-        {/* Right Column: System Logs (Glass Sidebar) */}
-        {/* <div className="hidden lg:flex flex-col bg-white/20 backdrop-blur-xl rounded-[2.5rem] border border-white/40 shadow-xl overflow-hidden">
-           <div className="p-6 border-b border-white/10 bg-white/10 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-slate-700">
-                 <Command size={18} />
-                 <h2 className="font-semibold text-sm">System Events</h2>
-              </div>
-              <div className="flex gap-1">
-                 <div className="w-2.5 h-2.5 rounded-full bg-slate-300" />
-                 <div className="w-2.5 h-2.5 rounded-full bg-slate-300" />
-              </div>
-           </div>
+        {/* Error Message */}
+        {errorMessage && (
+          <div
+            style={{
+              marginTop: '16px',
+              padding: '12px 16px',
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: '12px',
+              color: '#fca5a5',
+              fontSize: '14px',
+              textAlign: 'center',
+            }}
+          >
+            {errorMessage}
+          </div>
+        )}
 
-           <div className="flex-1 p-4 overflow-y-auto custom-scrollbar space-y-3 bg-white/5">
-              {socketLogs.length === 0 && (
-                <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm gap-2">
-                   <Activity size={24} className="opacity-50" />
-                   <p>No network activity</p>
-                </div>
-              )}
+        {/* Old Style Mic Button - Large and Centered */}
+        <div
+          style={{
+            marginTop: '40px',
+            display: 'flex',
+            justifyContent: 'center',
+          }}
+        >
+          <button
+            onClick={toggleConnection}
+            disabled={connectionState === ConnectionState.CONNECTING}
+            className={`
+              relative flex items-center justify-center w-20 h-20 rounded-full transition-all duration-300 shadow-xl hover:scale-105 active:scale-95
+              ${
+                isLive
+                  ? 'bg-gradient-to-tr from-red-500 to-pink-500 shadow-red-500/30'
+                  : 'bg-gradient-to-tr from-indigo-500 to-purple-600 shadow-indigo-500/30'
+              }
+            `}
+            title={getVoiceButtonTitle()}
+          >
+            {isLive ? (
+              <MicOff className="w-8 h-8 text-white" />
+            ) : (
+              <Mic className="w-8 h-8 text-white" />
+            )}
 
-              {socketLogs.map((log) => (
-                <div key={log.id} className="group relative bg-white/60 p-3 rounded-xl border border-white/50 shadow-sm text-xs transition-all hover:bg-white/80">
-                   <div className="flex justify-between items-center mb-2">
-                      <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] uppercase ${log.direction === 'OUT' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                         {log.direction === 'OUT' ? 'Emit' : 'Recv'}
-                      </span>
-                      <span className="text-slate-400 text-[10px] font-mono">{log.timestamp}</span>
-                   </div>
-                   <div className="font-mono text-slate-600 break-words leading-relaxed">
-                      {JSON.stringify(log.payload, null, 2)}
-                   </div>
-                </div>
-              ))}
-           </div>
+            {connectionState === ConnectionState.CONNECTING && (
+              <div className="absolute inset-0 rounded-full border-4 border-white/30 border-t-white animate-spin" />
+            )}
+          </button>
+        </div>
 
-           <div className="p-4 border-t border-white/10 bg-white/10 text-center">
-               <p className="text-[10px] text-slate-500 font-medium flex items-center justify-center gap-1.5">
-                  <Wifi size={10} />
-                  Connected to Localhost
-               </p>
-           </div>
-        </div> */}
-      </main>
+        {/* Instructions */}
+        <div
+          style={{
+            marginTop: '20px',
+            textAlign: 'center',
+          }}
+        >
+          <p
+            style={{
+              color: '#9ca3af',
+              fontSize: '14px',
+              margin: 0,
+            }}
+          >
+            Hold SPACE or tap mic to talk
+          </p>
+        </div>
+      </div>
     </div>
   )
 }

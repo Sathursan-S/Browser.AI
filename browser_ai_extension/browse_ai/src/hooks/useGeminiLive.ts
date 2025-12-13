@@ -137,6 +137,7 @@ export const useGeminiLive = ({ onToolCall, systemInstruction, tools }: UseGemin
             if (message.toolCall) {
               const responses: any[] = []
               for (const fc of message.toolCall?.functionCalls || []) {
+                if (!fc.name) continue
                 try {
                   // Use the ref to ensure we call the latest version of the handler
                   const result = await onToolCallRef.current(fc.name, fc.args)
@@ -232,7 +233,7 @@ export const useGeminiLive = ({ onToolCall, systemInstruction, tools }: UseGemin
 
         // Convert to PCM Int16
         const pcmData = float32ToInt16(inputData)
-        const base64Data = arrayBufferToBase64(pcmData.buffer)
+        const base64Data = arrayBufferToBase64(pcmData.buffer as ArrayBuffer)
 
         // Send to Gemini
         sessionPromise.then((session) => {
