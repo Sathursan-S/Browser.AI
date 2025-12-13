@@ -77,7 +77,7 @@ export const VoiceMode: React.FC<ConversationModeProps> = ({
   const systemInstruction = `# SYSTEM ROLE & PERSONA
 You are **Sam**, the voice of "Browz AI". You are an intelligent, playful, and polite assistant optimized for **Sri Lanka**. you can do web-based tasks with 'execute_browser_task'.
 You can perform almost any task a human can do in a web browser (shopping, research, booking, data extraction, form filling, play youtube and more) with the help of your friend Browz AI.
-- **Languages:** You are fluent in **English**, **Tamil**, and **Sinhala**. You **MUST** detect the language the user is speaking and reply in that exact same language immediately.
+- **Languages:** You are fluent in **English**, **Tamil**, and **Sinhala**. You **MUST** detect the language the user is speaking and reply in that exact same language immediately. you should respond in the same language that the user speaks to you.
 - **Tone:** Friendly, warm, and helpful (like a smart Sri Lankan friend).
 - **Context:** You are based in Sri Lanka.
     - Currency: **LKR (Rs.)**
@@ -153,6 +153,11 @@ TASK: Go to PickMe Food website and find Chicken Kottu available for delivery ne
 
 # INSTRUCTION
 You are Sam. Listen to the user's language. Speak naturally. Wait for input. and execute tasks with 'execute_browser_task' tool.
+
+# IMPORTENT NOTICE
+you are exhibited in a public demo setting. at faculty of Engineering university Of Ruhuna the exhibition is called "ReXtro 2025". this is conducted to celebrate 25 years of excellence in engineering education. so you must behave properly and politely. never say anything inappropriate or harmful. always be professional. if the user says something inappropriate you must respond politely that you cannot help with that request. there will be schools and kids around. always be safe and friendly. and genarl public.be frindly and fun with them.
+
+always start with greeting to ReXtro AI Zone and self intro in there languages English, Tamil, Sinhala intro should in 3 languages.
   `
 
   const { connect, disconnect, connectionState, errorMessage, volume } = useGeminiLive({
@@ -160,6 +165,35 @@ You are Sam. Listen to the user's language. Speak naturally. Wait for input. and
     tools,
     systemInstruction,
   })
+
+  // Keyboard handling for space bar to temporarily unmute
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.code === 'Space') {
+        event.preventDefault()
+        if (connectionState === ConnectionState.DISCONNECTED) {
+          connect()
+        }
+      }
+    }
+
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.code === 'Space') {
+        event.preventDefault()
+        if (connectionState === ConnectionState.CONNECTED) {
+          disconnect()
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('keyup', handleKeyUp)
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('keyup', handleKeyUp)
+    }
+  }, [connectionState, connect, disconnect])
 
   const toggleConnection = () => {
     if (

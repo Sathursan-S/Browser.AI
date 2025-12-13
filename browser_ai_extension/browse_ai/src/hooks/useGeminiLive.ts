@@ -120,7 +120,12 @@ export const useGeminiLive = ({ onToolCall, systemInstruction, tools }: UseGemin
         config: {
           responseModalities: [Modality.AUDIO],
           systemInstruction: systemInstruction,
-          tools: tools,
+          tools: [
+            ...(tools || []),
+            {
+              googleSearch: {},
+            },
+          ],
         },
         callbacks: {
           onopen: () => {
