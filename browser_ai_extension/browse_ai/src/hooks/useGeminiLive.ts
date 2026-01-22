@@ -8,12 +8,7 @@ import {
   Tool,
 } from '@google/genai'
 import { ConnectionState } from '../types'
-import {
-  float32ToInt16,
-  arrayBufferToBase64,
-  base64ToArrayBuffer,
-  pcmToAudioBuffer,
-} from '../utils/audioUtils'
+import { base64ToArrayBuffer, pcmToAudioBuffer } from '../utils/audioUtils'
 
 // Helper to check if env is set
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || ''
@@ -35,8 +30,7 @@ export const useGeminiLive = ({ onToolCall, systemInstruction, tools }: UseGemin
   const inputAudioContextRef = useRef<AudioContext | null>(null)
   const outputAudioContextRef = useRef<AudioContext | null>(null)
   const inputSourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
-  const processorRef = useRef<ScriptProcessorNode | null>(null)
-  const analyserRef = useRef<AnalyserNode | null>(null)
+  const workletNodeRef = useRef<AudioWorkletNode | null>(null)
 
   // Session Management
   const sessionPromiseRef = useRef<Promise<any> | null>(null)
@@ -97,17 +91,30 @@ export const useGeminiLive = ({ onToolCall, systemInstruction, tools }: UseGemin
         (window as any).webkitAudioContext)({ sampleRate: 16000 })
       inputSourceRef.current = inputAudioContextRef.current.createMediaStreamSource(stream)
 
-      // Analyser for visualization
-      analyserRef.current = inputAudioContextRef.current.createAnalyser()
-      analyserRef.current.fftSize = 256
-      inputSourceRef.current.connect(analyserRef.current)
+      // Load AudioWorklet module
+      await inputAudioContextRef.current.audioWorklet.addModule('/worklets/audio-processor.js')
 
-      // Processor for streaming data
-      // Note: ScriptProcessor is deprecated but easiest for simple React demos without extra worker files.
-      processorRef.current = inputAudioContextRef.current.createScriptProcessor(4096, 1, 1)
+      // Create AudioWorkletNode for streaming data
+      workletNodeRef.current = new AudioWorkletNode(inputAudioContextRef.current, 'audio-processor')
 
-      inputSourceRef.current.connect(processorRef.current)
-      processorRef.current.connect(inputAudioContextRef.current.destination)
+      // Handle messages from worklet
+      workletNodeRef.current.port.onmessage = (event) => {
+        const { audioData, volume } = event.data
+        setVolume(volume)
+
+        // Send to Gemini
+        sessionPromise.then((session) => {
+          session.sendRealtimeInput({
+            media: {
+              mimeType: 'audio/pcm;rate=16000',
+              data: audioData,
+            },
+          })
+        })
+      }
+
+      inputSourceRef.current.connect(workletNodeRef.current)
+      workletNodeRef.current.connect(inputAudioContextRef.current.destination)
 
       // 2. Setup Output Audio (Speaker) -> 24kHz
       outputAudioContextRef.current = new (window.AudioContext ||
@@ -140,7 +147,7 @@ export const useGeminiLive = ({ onToolCall, systemInstruction, tools }: UseGemin
                 // if (!fc.name) continue
                 try {
                   // Use the ref to ensure we call the latest version of the handler
-                  const result = await onToolCallRef.current(fc.name, fc.args)
+                  const result = await onToolCallRef.current(fc.name || '', fc.args)
                   responses.push({
                     id: fc.id,
                     name: fc.name,
@@ -220,31 +227,7 @@ export const useGeminiLive = ({ onToolCall, systemInstruction, tools }: UseGemin
 
       sessionPromiseRef.current = sessionPromise
 
-      // 4. Start Streaming Input
-      processorRef.current.onaudioprocess = (e) => {
-        const inputData = e.inputBuffer.getChannelData(0)
-
-        // Calculate volume for visualizer
-        let sum = 0
-        for (let i = 0; i < inputData.length; i++) sum += inputData[i] * inputData[i]
-        const rms = Math.sqrt(sum / inputData.length)
-        // Normalize roughly 0-100
-        setVolume(Math.min(100, rms * 500))
-
-        // Convert to PCM Int16
-        const pcmData = float32ToInt16(inputData)
-        const base64Data = arrayBufferToBase64(pcmData.buffer as ArrayBuffer)
-
-        // Send to Gemini
-        sessionPromise.then((session) => {
-          session.sendRealtimeInput({
-            media: {
-              mimeType: 'audio/pcm;rate=16000',
-              data: base64Data,
-            },
-          })
-        })
-      }
+      // Audio streaming is handled by AudioWorkletNode
     } catch (err: any) {
       console.error('Failed to connect:', err)
       setErrorMessage(err.message)
