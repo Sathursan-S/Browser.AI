@@ -137,7 +137,7 @@ export const useGeminiLive = ({ onToolCall, systemInstruction, tools }: UseGemin
             if (message.toolCall) {
               const responses: any[] = []
               for (const fc of message.toolCall?.functionCalls || []) {
-                if (!fc.name) continue
+                // if (!fc.name) continue
                 try {
                   // Use the ref to ensure we call the latest version of the handler
                   const result = await onToolCallRef.current(fc.name, fc.args)

@@ -136,7 +136,7 @@ class BrowserContextConfig:
     allowed_domains: list[str] | None = None
     include_dynamic_attributes: bool = True
 
-    _force_keep_context_alive: bool = True
+    _force_keep_context_alive: bool = False
 
 
 @dataclass
