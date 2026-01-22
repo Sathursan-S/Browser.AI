@@ -192,7 +192,7 @@ class ExtensionTaskManager:
             # llm = self.config_manager.get_llm_instance()
             llm = ChatGoogleGenerativeAI(
                 model="gemini-2.0-flash-lite",
-                api_key="AIzaSyB0eQh5DMvMmHICuZAVHHNhMX36JprfQH4",
+                api_key="api-key",
             )
             # llm = ChatOpenAI(
             #     model="MiniMax-M2",
