@@ -33,6 +33,7 @@ from typing import Optional, Set
 
 from flask import Flask
 from flask_socketio import SocketIO, emit
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 from browser_ai.agent.views import AgentHistoryList
 from browser_ai.observability import (
@@ -188,7 +189,11 @@ class ExtensionTaskManager:
             from browser_ai import Agent, Browser, BrowserConfig
 
             # Create LLM instance
-            llm = self.config_manager.get_llm_instance()
+            # llm = self.config_manager.get_llm_instance()
+            llm = ChatGoogleGenerativeAI(
+                model="gemini-2.0-flash-lite",
+                api_key="AIzaSyB0eQh5DMvMmHICuZAVHHNhMX36JprfQH4",
+            )
             # llm = ChatOpenAI(
             #     model="MiniMax-M2",
             #     api_key=api_key,
